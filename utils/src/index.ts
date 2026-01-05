@@ -141,6 +141,7 @@ export * from './stages/transfer_stage';
 export * from './stages/transfer_stage.manager';
 export * from './stages/transfer_stage.validation';
 
+export * from './stages/sender_receiver_stage';
 // Utils
 export * from './utils/algebraic.utils';
 export * from './utils/cache.utils';

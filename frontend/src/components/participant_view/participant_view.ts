@@ -315,6 +315,10 @@ export class ParticipantView extends MobxLitElement {
         return html`<survey-per-participant-view .stage=${stage}></survey-view>`;
       case StageKind.TRANSFER:
         return html`<transfer-view .stage=${stage}></transfer-view>`;
+      case StageKind.SENDER_RECEIVER:
+        return html`<sender-receiver-participant-view
+          .stage=${stage}
+        ></sender-receiver-participant-view>`;
       default:
         return html`<div class="content">Stage not found</div>`;
     }

@@ -1,0 +1,120 @@
+@use '../../sass/common';
+@use '../../sass/typescale';
+:host {
+  display: block;
+  padding: 16px 24px;
+}
+
+.editor-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px; /* Slightly larger gap between main sections */
+}
+
+/* Main Section Titles */
+.section-header .title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface);
+  border-bottom: 2px solid var(--md-sys-color-outline-variant);
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+
+/* The Universal Group Style (Applied everywhere now) */
+.label-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.group-subtitle {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--md-sys-color-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Unified Row for inputs */
+.settings-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.settings-row md-outlined-text-field {
+  flex: 1;
+}
+
+/* --- Unified Payoff Matrix (No more cards, just grouped rows) --- */
+.matrix-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Visual accent for State 1 and State 2 payoffs */
+.state-row {
+  border-left: 4px solid var(--md-sys-color-outline-variant);
+  padding-left: 16px;
+}
+.state-1-accent {
+  border-left-color: var(--state-1-color);
+}
+.state-2-accent {
+  border-left-color: var(--state-2-color);
+}
+.safe-accent {
+  border-left-color: var(--safe-color);
+}
+
+/* --- Unified Textarea (Matching the Label Group style) --- */
+.textarea-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.custom-textarea {
+  width: 100%;
+  height: 250px;
+  padding: 12px;
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.5;
+  overflow-y: scroll;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.custom-textarea:focus {
+  outline: 2px solid var(--md-sys-color-primary);
+  border: none;
+}
+
+/* --- Unified Switch Rows --- */
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 4px; /* Minimal padding to match text alignment */
+
+  .label-content {
+    display: flex;
+    flex-direction: column;
+    .label-text {
+      font-weight: 500;
+      font-size: 0.95rem;
+    }
+    .helper {
+      font-size: 0.75rem;
+      color: var(--md-sys-color-outline);
+    }
+  }
+}

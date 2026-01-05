@@ -16,6 +16,7 @@ import '../stages/profile_stage_editor';
 import '../stages/reveal_editor';
 import '../stages/role_editor';
 import '../stages/stockinfo_editor';
+import '../stages/sender_receiver_editor';
 import '../stages/survey_editor';
 import '../stages/survey_per_participant_editor';
 import '../stages/tos_editor';
@@ -668,6 +669,13 @@ export class ExperimentBuilder extends MobxLitElement {
             <div slot="title">Asset allocation configuration</div>
             <multi-asset-allocation-editor .stage=${stage}>
             </multi-asset-allocation-editor>
+          </base-stage-editor>
+        `;
+      case StageKind.SENDER_RECEIVER:
+        return html`
+          <base-stage-editor .stage=${stage}>
+            <div slot="title">Sender-Receiver settings</div>
+            <sender-receiver-editor .stage=${stage}></sender-receiver-editor>
           </base-stage-editor>
         `;
       case StageKind.SURVEY:

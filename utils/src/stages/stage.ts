@@ -6,6 +6,14 @@ import {
   ChatStagePublicData,
   createChatStagePublicData,
 } from './chat_stage';
+
+import {
+  SenderReceiverStageConfig,
+  SenderReceiverStageParticipantAnswer,
+  SenderReceiverStagePublicData,
+  createSenderReceiverStagePublicData,
+} from './sender_receiver_stage';
+
 import {
   ChipStageConfig,
   ChipStageParticipantAnswer,
@@ -96,6 +104,7 @@ export enum StageKind {
   SURVEY = 'survey',
   SURVEY_PER_PARTICIPANT = 'surveyPerParticipant',
   TRANSFER = 'transfer',
+  SENDER_RECEIVER = 'sender_receiver',
 }
 
 /**
@@ -136,6 +145,7 @@ export type StageConfig =
   | ProfileStageConfig
   | RevealStageConfig
   | SalespersonStageConfig
+  | SenderReceiverStageConfig
   | StockInfoStageConfig
   | AssetAllocationStageConfig
   | MultiAssetAllocationStageConfig
@@ -168,7 +178,8 @@ export type StageParticipantAnswer =
   | RankingStageParticipantAnswer
   | StockInfoStageParticipantAnswer
   | SurveyStageParticipantAnswer
-  | SurveyPerParticipantStageParticipantAnswer;
+  | SurveyPerParticipantStageParticipantAnswer
+  | SenderReceiverStageParticipantAnswer;
 
 /**
  * Base stage public data created from cloud triggers
@@ -192,7 +203,8 @@ export type StagePublicData =
   | SalespersonStagePublicData
   | AssetAllocationStagePublicData
   | MultiAssetAllocationStagePublicData
-  | SurveyStagePublicData;
+  | SurveyStagePublicData
+  | SenderReceiverStagePublicData;
 
 /** Stage context data (used for assembling prompts). */
 export interface StageContextData {
@@ -274,6 +286,9 @@ export function createPublicDataFromStageConfigs(stages: StageConfig[]) {
         publicData.push(
           createMultiAssetAllocationStagePublicData({id: stage.id}),
         );
+        break;
+      case StageKind.SENDER_RECEIVER:
+        publicData.push(createSenderReceiverStagePublicData(stage.id));
         break;
       default:
         break;

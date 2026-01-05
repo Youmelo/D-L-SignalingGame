@@ -28,6 +28,7 @@ import {
   createProfileStage,
   createRevealStage,
   createRoleStage,
+  createSenderReceiverStage,
   createStockInfoStage,
   createSurveyPerParticipantStage,
   createSurveyStage,
@@ -255,6 +256,7 @@ export class StageBuilderDialog extends MobxLitElement {
           ${this.renderFlipCardCard()} ${this.renderStockInfoCard()}
           ${this.renderAssetAllocationCard()}
           ${this.renderMultiAssetAllocationCard()}
+          ${this.renderSenderReceiverCard()}
         </div>
       </div>
     `;
@@ -519,6 +521,19 @@ export class StageBuilderDialog extends MobxLitElement {
         <div>
           Reveal the results of rankings, elections, and survey stage responses.
         </div>
+      </div>
+    `;
+  }
+
+  private renderSenderReceiverCard() {
+    const addStage = () => {
+      this.addStage(createSenderReceiverStage());
+    };
+
+    return html`
+      <div class="card" @click=${addStage}>
+        <div class="title">📡 Sender-Receiver Game</div>
+        <div>conduct a sender-receiver communication game.</div>
       </div>
     `;
   }

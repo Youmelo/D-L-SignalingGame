@@ -714,3 +714,32 @@ export const revokeDeliberateLabAPIKeyCallable = async (
   )({keyId});
   return data;
 };
+
+/** Submit action for Sender-Receiver stage. */
+export const submitSenderReceiverActionCallable = async (
+  functions: Functions,
+  payload: {
+    experimentId: string;
+    cohortId: string;
+    stageId: string;
+    role: 'sender' | 'receiver';
+    action: string;
+    message?: string;
+  },
+) => {
+  const {data} = await httpsCallable<
+    {
+      experimentId: string;
+      cohortId: string;
+      stageId: string;
+      role: 'sender' | 'receiver';
+      action: string;
+      message?: string;
+    },
+    SuccessResponse
+  >(
+    functions,
+    'submitSenderReceiverAction',
+  )(payload);
+  return data;
+};

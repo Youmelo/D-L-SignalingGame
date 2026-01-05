@@ -22,6 +22,7 @@ export * from './stages/flipcard.endpoints';
 export * from './stages/ranking.endpoints';
 export * from './stages/role.endpoints';
 export * from './stages/salesperson.endpoints';
+export * from './stages/sender_receiver.endpoints';
 export * from './stages/survey.endpoints';
 
 // Trigger functions
