@@ -19,6 +19,7 @@ import {ProfileStageConfigData} from './profile_stage.validation';
 import {RevealStageConfigData} from './reveal_stage.validation';
 import {RoleStageConfigData} from './role_stage.validation';
 import {SalespersonStageConfigData} from './salesperson_stage.validation';
+import {SenderReceiverStageConfigData} from './sender_receiver_stage.validation';
 import {StockInfoStageConfigData} from './stockinfo_stage.validation';
 import {
   SurveyPerParticipantStageConfigData,
@@ -50,6 +51,7 @@ export const CONFIG_DATA = {
   reveal: RevealStageConfigData,
   role: RoleStageConfigData,
   salesperson: SalespersonStageConfigData,
+  sender_receiver: SenderReceiverStageConfigData,
   stockinfo: StockInfoStageConfigData,
   surveyPerParticipant: SurveyPerParticipantStageConfigData,
   survey: SurveyStageConfigData,

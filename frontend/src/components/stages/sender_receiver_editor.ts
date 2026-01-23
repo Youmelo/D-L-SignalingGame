@@ -31,8 +31,8 @@ export class SenderReceiverEditor extends MobxLitElement {
         <div class="settings-row">
           ${this.renderNumberInput('Total Rounds', 'numRounds')}
           ${this.renderNumberInput(
-            'Status 1 Probability (0.0-1.0)',
-            'status1Probability',
+            'True State 1 Probability (0.0-1.0)',
+            'state1Probability',
           )}
           ${this.renderNumberInput(
             'Time Limit (Seconds)',
@@ -51,10 +51,18 @@ export class SenderReceiverEditor extends MobxLitElement {
           </div>
         </div>
         <div class="label-group">
-          <div class="group-subtitle">Status Names(Risk Option B)</div>
+          <div class="group-subtitle">Option Names</div>
           <div class="settings-row">
-            ${this.renderTextInput('Status 1 Name', 'status1Label')}
-            ${this.renderTextInput('Status 2 Name', 'status2Label')}
+            ${this.renderTextInput('Option A Label', 'optionALabel')}
+            ${this.renderTextInput('Option B Label', 'optionBLabel')}
+          </div>
+        </div>
+
+        <div class="label-group">
+          <div class="group-subtitle">State Names(Risk Option B)</div>
+          <div class="settings-row">
+            ${this.renderTextInput('True State 1 Name', 'state1Label')}
+            ${this.renderTextInput('TrueState 2 Name', 'state2Label')}
           </div>
         </div>
 
@@ -113,7 +121,7 @@ export class SenderReceiverEditor extends MobxLitElement {
 
           <div class="state-card state-1">
             <span class="state-label"
-              >RISKY OPTION (B) - IF ${this.stage.status1Label}</span
+              >RISKY OPTION (B) - IF ${this.stage.state1Label}</span
             >
             <div class="input-stack">
               ${this.renderNumberInput('Sender Payoff', 'payoffSenderChoiceB1')}
@@ -126,7 +134,7 @@ export class SenderReceiverEditor extends MobxLitElement {
 
           <div class="state-card state-2">
             <span class="state-label"
-              >RISKY OPTION (B) - IF ${this.stage.status2Label}</span
+              >RISKY OPTION (B) - IF ${this.stage.state2Label}</span
             >
             <div class="input-stack">
               ${this.renderNumberInput('Sender Payoff', 'payoffSenderChoiceB2')}
@@ -231,8 +239,9 @@ export class SenderReceiverEditor extends MobxLitElement {
         </div>
         <md-switch
           .selected=${!!this.stage?.[field]}
-          @change=${(e: CustomEvent) =>
-            this.updateStage({[field]: e.detail.selected})}
+          @change=${(e: Event) =>
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            this.updateStage({[field]: (e.target as any).selected})}
         >
         </md-switch>
       </div>

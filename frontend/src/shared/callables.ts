@@ -18,6 +18,7 @@ import {
   ParticipantNextStageResponse,
   ParticipantProfile,
   RequestChipAssistanceData,
+  SenderReceiverActionData,
   SendAlertMessageData,
   SendChipOfferData,
   SendChipResponseData,
@@ -273,6 +274,18 @@ export const sendParticipantCheckCallable = async (
   const {data} = await httpsCallable<SendParticipantCheckData, SuccessResponse>(
     functions,
     'sendParticipantCheck',
+  )(config);
+  return data;
+};
+
+/** Endpoint to submit Sender-Receiver game actions. */
+export const submitSenderReceiverActionCallable = async (
+  functions: Functions,
+  config: SenderReceiverActionData,
+) => {
+  const {data} = await httpsCallable<SenderReceiverActionData, SuccessResponse>(
+    functions,
+    'submitSenderReceiverAction',
   )(config);
   return data;
 };
@@ -712,34 +725,5 @@ export const revokeDeliberateLabAPIKeyCallable = async (
     functions,
     'revokeDeliberateLabAPIKey',
   )({keyId});
-  return data;
-};
-
-/** Submit action for Sender-Receiver stage. */
-export const submitSenderReceiverActionCallable = async (
-  functions: Functions,
-  payload: {
-    experimentId: string;
-    cohortId: string;
-    stageId: string;
-    role: 'sender' | 'receiver';
-    action: string;
-    message?: string;
-  },
-) => {
-  const {data} = await httpsCallable<
-    {
-      experimentId: string;
-      cohortId: string;
-      stageId: string;
-      role: 'sender' | 'receiver';
-      action: string;
-      message?: string;
-    },
-    SuccessResponse
-  >(
-    functions,
-    'submitSenderReceiverAction',
-  )(payload);
   return data;
 };

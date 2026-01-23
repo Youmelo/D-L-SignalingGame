@@ -29,12 +29,16 @@ export interface SenderReceiverStageConfig extends BaseStageConfig {
   senderButtonLabel2: string; // label for option B
   receiverButtonLabel1: string; // label for option A
   receiverButtonLabel2: string; // label for option B
-  status1Label: string; // label for status 1 option
-  status2Label: string; // label for status 2 option
+
+  optionALabel: string; // Title for Option A (e.g., Safe Option)
+  optionBLabel: string; // Title for Option B (e.g., Risky Option)
+
+  state1Label: string; // label for state 1 option
+  state2Label: string; // label for state 2 option
 
   /*experiment parameters*/
-  numRounds: number; // number of rounds in the stage
-  status1Probability: number;
+  numRounds: number;
+  state1Probability: number; // probability of true state being state 1
   allowTextMessage: boolean; // whether sender can write custom message
   allowButtonPress: boolean; // whether sender can select label for options
   showSenderDefaultChoice: boolean; // whether to show default choice if time limit exceeded
@@ -46,12 +50,12 @@ export interface SenderReceiverStageConfig extends BaseStageConfig {
 
   /*payoff structure for the sender and receiver*/
   payoffSenderChoiceA: number; // payoff to sender if they choose option A
-  payoffSenderChoiceB1: number; // payoff to sender if they choose option B(Status=1)
-  payoffSenderChoiceB2: number; // payoff to sender if they choose option B(Status=2)
+  payoffSenderChoiceB1: number; // payoff to sender if they choose option B(state=1)
+  payoffSenderChoiceB2: number; // payoff to sender if they choose option B(state=2)
 
   payoffReceiverChoiceA: number; // payoff to receiver if they choose option A
-  payoffReceiverChoiceB1: number; // payoff to receiver if they choose option B(Status=1)
-  payoffReceiverChoiceB2: number; // payoff to receiver if they choose option B(Status=2)
+  payoffReceiverChoiceB1: number; // payoff to receiver if they choose option B(state=1)
+  payoffReceiverChoiceB2: number; // payoff to receiver if they choose option B(state=2)
 }
 
 /**
@@ -60,7 +64,7 @@ export interface SenderReceiverStageConfig extends BaseStageConfig {
  * */
 export interface SenderReceiverRoundData {
   roundNumber: number;
-  trueStatus: 1 | 2; // Secret state determined by the system/referee
+  trueState: 1 | 2; // Secret state determined by the system/referee
 
   /*
    * Refined status flow:
@@ -87,6 +91,10 @@ export interface SenderReceiverRoundData {
   // Results for this round
   senderPayoff: number | null;
   receiverPayoff: number | null;
+
+  // Ready for next round flags
+  senderReadyNext?: boolean;
+  receiverReadyNext?: boolean;
 
   // Timestamps for reaction time analysis
   startTime: UnifiedTimestamp | null; // Round starts (Start reading)
@@ -121,6 +129,23 @@ export interface SenderReceiverStageParticipantAnswer extends BaseStageParticipa
   totalPayoff: number;
 }
 
+/**
+ * Request payload for submitting an action in Sender-Receiver stage
+ */
+export interface SenderReceiverActionData {
+  experimentId: string;
+  cohortId: string;
+  stageId: string;
+  action: 'assign_role' | 'sender_signal' | 'receiver_choice' | 'next_round';
+  payload?: {
+    senderLabel?: 'A' | 'B'; // For sender_signal
+    senderMessage?: string; // For sender_signal
+    receiverChoice?: 'A' | 'B'; // For receiver_choice
+    participantId?: string; // For assign_role
+    requestedRole?: 'sender' | 'receiver'; // For assign_role (optional persistence)
+  };
+}
+
 // ************************************************************************* //
 // Helper Functions                                                          //
 // ************************************************************************* //
@@ -139,18 +164,36 @@ export function createSenderReceiverStage(
 
     // Default Values
     numRounds: 3,
-    senderInstructionDetail: 'You are the Sender.',
-    receiverInstructionDetail: 'You are the Receiver.',
-    status1Label: '👨‍👩‍👧‍👦High Customer Flow',
-    status2Label: '🧍‍♂️Low Customer Flow',
-    senderButtonLabel1: 'I recommend Option A (Safe)',
-    senderButtonLabel2: 'I recommend Option B (Risky)',
-    receiverButtonLabel1: 'Choose Option A (Safe)',
-    receiverButtonLabel2: 'Choose Option B (Risky)',
+    state1Probability: 0.5,
+    senderInstructionDetail: `## Role
+You are a **Guild advisor** working with two markets. 
+By advising a vendor about these markets, you earn a commission depending on the market they choose.
+
+## Market Information
+The profitability of each market varies depending on customer flow, which **only you will know in advance**.`,
+    receiverInstructionDetail: `## Role
+You are a **Guild vendor** choosing between two markets. 
+By selecting a market, you earn a return for your products depending on the market’s customer flow.
+
+## Market Information
+The profitability of each market varies depending on customer flow, which you will learn from your **advisor’s recommendation**.`,
+
+    state1Label: '👨‍👩‍👧‍👦Busy',
+    state2Label: '🧍‍♂️Quiet',
+
+    optionALabel: 'Alpha Market',
+    optionBLabel: 'Beta Exchange',
+
+    senderButtonLabel1: 'I recommend Alpha Market',
+    senderButtonLabel2: 'I recommend Beta Exchange',
+    receiverButtonLabel1: 'Choose Alpha Market',
+    receiverButtonLabel2: 'Choose Beta Exchange',
 
     timeLimitInMinutes: null,
     defaultSenderChoice: 'random',
     defaultReceiverChoice: 'random',
+    allowTextMessage: true,
+    allowButtonPress: false,
 
     payoffSenderChoiceA: 30,
     payoffSenderChoiceB1: 0,

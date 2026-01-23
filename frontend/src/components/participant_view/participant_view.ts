@@ -3,6 +3,7 @@ import '../popup/attention_check_popup';
 import '../popup/booted_popup';
 import '../progress/progress_stage_waiting';
 import '../stages/group_chat_participant_view';
+import '../stages/sender_receiver_participant_view';
 import '../stages/private_chat_participant_view';
 import '../stages/chip_participant_view';
 import '../stages/comprehension_participant_view';

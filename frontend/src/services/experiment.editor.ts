@@ -537,7 +537,8 @@ export class ExperimentEditor extends Service {
         experimentTemplate: {
           id: '',
           experiment: this.experiment,
-          stageConfigs: this.stages,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          stageConfigs: this.stages as any,
           agentMediators: this.agentMediators,
           agentParticipants: this.agentParticipants,
         },

@@ -14,6 +14,7 @@ import {
   RoleStageConfig,
   StageKind,
   StageParticipantAnswer,
+  SenderReceiverActionData,
   SurveyAnswer,
   SurveyPerParticipantStageParticipantAnswer,
   SurveyStageParticipantAnswer,
@@ -71,6 +72,7 @@ import {
   updateSurveyPerParticipantStageParticipantAnswerCallable,
   updateSurveyStageParticipantAnswerCallable,
   updateRankingStageParticipantAnswerCallable,
+  submitSenderReceiverActionCallable,
 } from '../shared/callables';
 import {PROLIFIC_COMPLETION_URL_PREFIX} from '../shared/constants';
 import {
@@ -913,6 +915,21 @@ export class ParticipantService extends Service {
       );
     }
     return response;
+  }
+
+  async submitSenderReceiverAction(
+    data: Omit<SenderReceiverActionData, 'experimentId' | 'cohortId'>,
+  ) {
+    if (this.experimentId && this.profile) {
+      await submitSenderReceiverActionCallable(
+        this.sp.firebaseService.functions,
+        {
+          ...data,
+          experimentId: this.experimentId,
+          cohortId: this.profile.currentCohortId,
+        },
+      );
+    }
   }
 
   /** Send participant chip response. */

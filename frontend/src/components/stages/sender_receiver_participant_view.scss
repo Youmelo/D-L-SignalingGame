@@ -1,0 +1,242 @@
+@use '../../sass/common';
+@use '../../sass/typescale';
+
+/* Unified Payoff Table Styles - Shared by Sender Cards and Receiver Info Cards */
+.payoff-details-container {
+  @include common.flex-column;
+  gap: 8px;
+  font-size: 0.9rem;
+  width: 100%;
+}
+
+.payoff-row {
+  @include common.flex-column;
+  padding: 10px;
+  border-radius: 6px;
+  background-color: #fff;
+  border: 1px solid #dadce0; /* Default border for unselected/neutral */
+  color: #3c4043; /* Default text color */
+
+  &.highlight-row {
+    background-color: #e8f0fe; /* Blue background */
+    border: 1px solid #1a73e8; /* Blue border */
+    color: #1a73e8; /* Blue text */
+
+    .role-payoff b {
+      font-weight: 700;
+      font-size: 1.1em;
+    }
+  }
+
+  /* Mismatched/Unselected state */
+  &.dimmed-row {
+    background-color: #f8f9fa;
+    color: #5f6368; /* Slightly muted text for unselected */
+    border-color: transparent; /* Or keep light border */
+    opacity: 1;
+  }
+
+  .state-label {
+    font-weight: bold;
+    font-size: 0.85rem;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    opacity: 0.9;
+  }
+
+  .role-payoff {
+    @include common.flex-row;
+    justify-content: space-between;
+    padding: 2px 8px;
+  }
+}
+
+.waiting-screen,
+.waiting-panel {
+  @include common.flex-column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 40px;
+  text-align: center;
+
+  p {
+    font-size: 1.1rem;
+    color: var(--md-sys-color-on-surface-variant);
+    margin-bottom: 20px;
+  }
+}
+
+.reading-panel,
+.action-panel,
+.feedback-panel {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 30px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.reading-panel {
+  .instruction-box {
+    background: #f8f9fa;
+    padding: 20px;
+    border-left: 4px solid #1a73e8;
+    margin-bottom: 24px;
+    line-height: 1.6;
+    border-radius: 4px;
+    color: #202124;
+  }
+
+  .message-box {
+    background: #e8f0fe;
+    padding: 16px;
+    border-radius: 8px;
+    margin-bottom: 24px;
+    color: #174ea6;
+
+    .sender-msg-text {
+      margin-top: 8px;
+      font-style: italic;
+      color: #333;
+      opacity: 0.9;
+    }
+  }
+
+  .action-footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 24px;
+  }
+}
+
+.action-panel {
+  .status-reveal {
+    font-size: 1.25rem;
+    padding: 16px;
+    background: #e6f4ea;
+    color: #137333;
+    border: 1px solid #ceead6;
+
+    border-radius: 8px;
+    text-align: center;
+    margin-bottom: 24px;
+  }
+
+  /* Integrated Decision Cards for Sender */
+  .cards-container {
+    display: flex;
+    gap: 20px;
+    margin-top: 24px;
+    flex-wrap: wrap; /* responsive */
+  }
+
+  .decision-card,
+  .info-card {
+    flex: 1;
+    min-width: 280px;
+    border: 1px solid #dadce0;
+    border-radius: 12px;
+    padding: 20px;
+    background-color: #fff;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: all 0.2s ease-in-out;
+
+    h4 {
+      margin: 0 0 12px 0;
+      font-size: 1.2rem;
+      color: #202124;
+      font-weight: 600;
+      border-bottom: 2px solid #f1f3f4;
+      padding-bottom: 8px;
+      text-align: center;
+      margin-bottom: 16px;
+    }
+  }
+
+  .decision-card {
+    /* .card-header specific overrides if any */
+    .card-header {
+      text-align: center;
+      margin-bottom: 16px;
+    }
+
+    .card-interaction {
+      @include common.flex-column;
+      gap: 12px;
+    }
+
+    .message-input {
+      width: 100%;
+      --md-outlined-text-field-container-shape: 8px;
+    }
+
+    .action-btn {
+      width: 100%;
+      --md-filled-button-container-height: 48px;
+    }
+
+    /* Active Typing State - Highlight the card */
+    &.active-typing {
+      border-color: #1a73e8;
+      box-shadow: 0 4px 12px rgba(26, 115, 232, 0.15);
+      background-color: #f8fbff;
+      transform: translateY(-2px);
+    }
+  }
+}
+
+/* Receiver Specific */
+.payoff-matrix-display {
+  display: flex;
+  gap: 16px;
+  margin: 20px 0;
+
+  /* Inherit shared card styles */
+}
+
+.receiver-action-area {
+  margin-top: 32px;
+  border-top: 1px solid #eee;
+  padding-top: 24px;
+  text-align: center;
+
+  h4 {
+    margin-bottom: 20px;
+    color: #444;
+  }
+
+  .button-row {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+
+    .signal-btn {
+      min-width: 120px;
+    }
+  }
+}
+
+.feedback-panel {
+  text-align: center;
+  padding: 50px;
+
+  h3 {
+    color: #1a73e8;
+    margin-bottom: 24px;
+  }
+
+  p {
+    font-size: 1.2rem;
+    margin: 10px 0;
+  }
+
+  .waiting-text {
+    margin-top: 30px;
+    font-style: italic;
+    color: #888;
+  }
+}
