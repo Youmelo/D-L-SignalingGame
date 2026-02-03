@@ -1,6 +1,109 @@
 @use '../../sass/common';
 @use '../../sass/typescale';
 
+/* Countdown Timer Display */
+.countdown-display {
+  @include common.flex-row;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  margin: 16px auto;
+  background-color: #e8f0fe;
+  border: 2px solid #1a73e8;
+  border-radius: 8px;
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #1a73e8;
+
+  md-icon {
+    font-size: 1.5rem;
+  }
+
+  &.urgent {
+    background-color: #fce8e6;
+    border-color: #d93025;
+    color: #d93025;
+    animation: pulse 1s infinite;
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* Partner Countdown Display (for waiting panels) */
+.partner-countdown-display {
+  @include common.flex-row;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  margin: 12px auto;
+  background-color: #f5f5f5;
+  border: 1px solid #999;
+  border-radius: 6px;
+  font-size: 1rem;
+  color: #666;
+
+  md-icon {
+    font-size: 1.2rem;
+    color: #888;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Timeout indicator styles */
+.timeout-indicator {
+  color: #d93025;
+  font-style: italic;
+  font-size: 0.9em;
+}
+
+.partner-timeout-note {
+  color: #666;
+  font-style: italic;
+  font-size: 0.9em;
+  margin-top: 4px;
+}
+
+/* Loading spinner icon */
+.loading-icon {
+  font-size: 48px;
+  color: #1a73e8;
+  animation: spin 1s linear infinite;
+}
+
+/* Waiting icon (gray hourglass) */
+.waiting-icon {
+  font-size: 48px;
+  color: #aaa;
+}
+
+/* Wrapper for icons with margin */
+.icon-wrapper {
+  margin-top: 20px;
+}
+
+/* Footer with margin */
+.stage-finished-footer {
+  margin-top: 24px;
+}
+
 /* Unified Payoff Table Styles - Shared by Sender Cards and Receiver Info Cards */
 .payoff-details-container {
   @include common.flex-column;
@@ -67,6 +170,144 @@
   }
 }
 
+/* Start Game Screen */
+.start-game-screen {
+  .ready-status {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 24px 0;
+    padding: 16px;
+    background: var(--md-sys-color-surface-container);
+    border-radius: 12px;
+    min-width: 240px;
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      background: var(--md-sys-color-surface);
+      transition: background 0.2s ease;
+
+      md-icon {
+        color: var(--md-sys-color-outline);
+        font-size: 20px;
+      }
+
+      &.ready {
+        background: var(--md-sys-color-primary-container);
+
+        md-icon {
+          color: var(--md-sys-color-primary);
+        }
+      }
+    }
+  }
+
+  .waiting-for-partner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    margin-top: 16px;
+
+    .waiting-icon {
+      animation: pulse 1.5s infinite;
+      color: var(--md-sys-color-primary);
+      font-size: 32px;
+    }
+  }
+
+  md-filled-button {
+    margin-top: 16px;
+  }
+}
+
+/* Round instruction text styles */
+.round-context-text {
+  text-align: center;
+  color: #555;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.action-instruction {
+  text-align: center;
+  color: #1a73e8;
+  font-weight: 600;
+  margin-top: 20px;
+  font-size: 1.1em;
+}
+
+/* Cards container for sender decision */
+.sender-cards-container {
+  display: flex;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+/* Confirm button wrapper */
+.confirm-button-wrapper {
+  margin-top: 32px;
+  display: flex;
+  justify-content: center;
+}
+
+/* Primary action button styling */
+.primary-action-btn {
+  --md-filled-button-container-color: #1a73e8;
+  font-size: 1.1em;
+  padding: 10px 24px;
+}
+
+/* Result details container */
+.result-details {
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  margin: 20px 0;
+}
+
+/* Cumulative payoff display */
+.cumulative-payoff {
+  margin-top: 16px;
+  padding: 12px 20px;
+  background: var(--md-sys-color-primary-container, #e8f0fe);
+  border-radius: 8px;
+  text-align: center;
+  font-size: 1.1em;
+
+  b {
+    color: var(--md-sys-color-primary, #1a73e8);
+    font-size: 1.2em;
+  }
+}
+
+/* Waiting text for next round */
+.waiting-next-text {
+  margin-top: 20px;
+  color: #666;
+}
+
+/* Next round button wrapper */
+.next-round-wrapper {
+  margin-top: 20px;
+}
+
+/* Selected card state */
+.decision-card.selected-card {
+  border: 2px solid #1a73e8;
+  background-color: #f0f7ff;
+}
+
+/* Payoff info card content */
+.payoff-info-content {
+  text-align: left;
+  margin-top: 10px;
+}
+
 .reading-panel,
 .action-panel,
 .feedback-panel {
@@ -90,17 +331,21 @@
   }
 
   .message-box {
-    background: #e8f0fe;
-    padding: 16px;
-    border-radius: 8px;
+    background: #e6f4ea;
+    padding: 20px 24px;
+    border: 2px solid #34a853;
+    border-radius: 12px;
     margin-bottom: 24px;
-    color: #174ea6;
+    color: #137333;
+    text-align: center;
+    font-size: 1.25rem;
+    font-weight: 500;
+    box-shadow: 0 2px 8px rgba(52, 168, 83, 0.15);
 
     .sender-msg-text {
       margin-top: 8px;
       font-style: italic;
-      color: #333;
-      opacity: 0.9;
+      color: #137333;
     }
   }
 

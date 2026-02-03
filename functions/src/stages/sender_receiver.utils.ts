@@ -3,6 +3,7 @@ import {
   SenderReceiverStagePublicData,
   SenderReceiverRoundData,
   SenderReceiverStageConfig,
+  getRoundDefault,
 } from '@deliberation-lab/utils';
 
 /**
@@ -12,6 +13,7 @@ import {
 export function startGameIfReady(
   publicData: SenderReceiverStagePublicData,
   config: SenderReceiverStageConfig,
+  stageId: string,
 ): Record<string, unknown> | null {
   // 1. Check if roles are filled
   if (!publicData.senderId || !publicData.receiverId) {
@@ -23,8 +25,9 @@ export function startGameIfReady(
     return null; // Already started
   }
 
-  // 3. Initialize Round 1
-  const firstRound = createNewRound(1, config);
+  // 3. Initialize Round 1 with balanced state generation (first round needs WAITING_BOTH_START)
+  const pairSeed = `${publicData.senderId}-${publicData.receiverId}-${stageId}`;
+  const firstRound = createNewRound(1, config, pairSeed, true); // isFirstRound = true
 
   return {
     [`roundMap.1`]: firstRound,
@@ -33,19 +36,36 @@ export function startGameIfReady(
 }
 
 /**
- * Helper to create a new round object
+ * Helper to create a new round object with balanced state generation
+ * @param roundNumber - The round number (1-indexed)
+ * @param config - Stage configuration
+ * @param pairSeed - Seed for deterministic random generation
+ * @param isFirstRound - Whether this is the first round (needs WAITING_BOTH_START status)
  */
 export function createNewRound(
   roundNumber: number,
   config: SenderReceiverStageConfig,
+  pairSeed: string,
+  isFirstRound: boolean = false,
 ): SenderReceiverRoundData {
-  // Determine true state based on probability
-  const isState1 = Math.random() < (config.state1Probability ?? 0.5);
+  // Use balanced state generation based on participant pair seed
+  const roundDefaults = getRoundDefault(
+    roundNumber,
+    config.numRounds,
+    config.state1Probability ?? 0.5,
+    pairSeed,
+  );
+  const trueState = roundDefaults.trueState;
+
+  // First round starts with WAITING_BOTH_START, subsequent rounds start with WAITING_SENDER_DECIDE
+  const initialStatus = isFirstRound
+    ? 'WAITING_BOTH_START'
+    : 'WAITING_SENDER_DECIDE';
 
   return {
     roundNumber,
-    trueState: isState1 ? 1 : 2,
-    status: 'WAITING_SENDER_DECIDE', // Start state - directly to simplify flow
+    trueState,
+    status: initialStatus,
 
     senderLabel: null,
     senderMessage: null,
@@ -53,13 +73,27 @@ export function createNewRound(
     senderPayoff: null,
     receiverPayoff: null,
 
-    // Timestamps
-    startTime: Timestamp.now(),
-    senderUnlockedTime: null,
+    defaultSenderLabel: null,
+    defaultReceiverChoice: null,
+    senderTimedOut: false,
+    receiverTimedOut: false,
+
+    // Ready to start flags (only used for first round)
+    senderReadyStart: false,
+    receiverReadyStart: false,
+
+    // Timestamps: startTime and senderUnlockedTime will be set when both players click Start Game
+    startTime: isFirstRound ? null : Timestamp.now(),
+    senderUnlockedTime: isFirstRound ? null : Timestamp.now(),
     senderSubmittedTime: null,
     receiverSawMessageTime: null,
     receiverUnlockedTime: null,
     receiverSubmittedTime: null,
+
+    senderReactionTimeSeconds: null,
+    receiverReactionTimeSeconds: null,
+    senderActiveTimeSeconds: null,
+    receiverActiveTimeSeconds: null,
   };
 }
 

@@ -9,6 +9,7 @@ import {
   SenderReceiverActionData,
   StageKind,
   UnifiedTimestamp, // Import UnifiedTimestamp
+  getRoundDefault,
 } from '@deliberation-lab/utils';
 
 import {
@@ -173,7 +174,7 @@ export const submitSenderReceiverAction = onCall<SenderReceiverActionData>(
 
         // Check if game can start (both roles filled -> init round 1)
         const simulatedData = {...currentPublicData, ...updates};
-        const startUpdates = startGameIfReady(simulatedData, config);
+        const startUpdates = startGameIfReady(simulatedData, config, stageId);
 
         if (startUpdates) {
           Object.assign(updates, startUpdates);
@@ -206,6 +207,47 @@ export const submitSenderReceiverAction = onCall<SenderReceiverActionData>(
         );
       }
 
+      // A2. START GAME (Both players must click to start the first round)
+      if (action === 'start_game') {
+        if (roundData.status !== 'WAITING_BOTH_START') {
+          // Game already started or not in the right state
+          return;
+        }
+
+        const updates: Record<string, unknown> = {};
+        let shouldStart = false;
+
+        if (isSender) {
+          updates[`roundMap.${roundIndex}.senderReadyStart`] = true;
+          // Check if receiver is already ready
+          if (roundData.receiverReadyStart) {
+            shouldStart = true;
+          }
+        } else if (isReceiver) {
+          updates[`roundMap.${roundIndex}.receiverReadyStart`] = true;
+          // Check if sender is already ready
+          if (roundData.senderReadyStart) {
+            shouldStart = true;
+          }
+        }
+
+        if (shouldStart) {
+          // Both players ready - start the game!
+          const now = Timestamp.now();
+          updates[`roundMap.${roundIndex}.status`] = 'WAITING_SENDER_DECIDE';
+          updates[`roundMap.${roundIndex}.startTime`] = now;
+          updates[`roundMap.${roundIndex}.senderUnlockedTime`] = now;
+          console.log(`[StartGame] Both players ready. Game started!`);
+        } else {
+          console.log(
+            `[StartGame] User ${userId} is ready. Waiting for partner.`,
+          );
+        }
+
+        transaction.update(publicDataRef, updates);
+        return;
+      }
+
       // B2. SENDER SIGNAL (Skip confirm read)
       if (action === 'sender_signal') {
         if (!isSender) {
@@ -214,25 +256,56 @@ export const submitSenderReceiverAction = onCall<SenderReceiverActionData>(
             'Only sender can signal',
           );
         }
-        // Allow WAITING_SENDER_READ for backward compatibility with old data
-        if (
-          roundData.status !== 'WAITING_SENDER_DECIDE' &&
-          roundData.status !== 'WAITING_SENDER_READ'
-        ) {
+        if (roundData.status !== 'WAITING_SENDER_DECIDE') {
           throw new functions.https.HttpsError(
             'failed-precondition',
             `Not sender turn. Current status: ${roundData.status}`,
           );
         }
 
+        const now = Timestamp.now();
+
+        // Calculate sender reaction time in seconds
+        let senderReactionTimeSeconds: number | null = null;
+        if (roundData.senderUnlockedTime) {
+          const unlockedMs = roundData.senderUnlockedTime.toMillis();
+          const nowMs = now.toMillis();
+          senderReactionTimeSeconds = (nowMs - unlockedMs) / 1000;
+        }
+
         const updateData: Record<string, unknown> = {
           [`roundMap.${roundIndex}.senderLabel`]: payload?.senderLabel || null,
           [`roundMap.${roundIndex}.senderMessage`]:
             payload?.senderMessage || null,
-          [`roundMap.${roundIndex}.senderSubmittedTime`]: Timestamp.now(),
+          [`roundMap.${roundIndex}.senderSubmittedTime`]: now,
+          [`roundMap.${roundIndex}.senderReactionTimeSeconds`]:
+            senderReactionTimeSeconds,
+          [`roundMap.${roundIndex}.senderActiveTimeSeconds`]:
+            payload?.activeTimeSeconds ?? null,
+          [`roundMap.${roundIndex}.senderTimedOut`]:
+            payload?.isTimedOut ?? false,
+          [`roundMap.${roundIndex}.defaultSenderLabel`]:
+            payload?.defaultLabel ?? null,
           // Transition directly to Receiver Actions
           [`roundMap.${roundIndex}.status`]: 'WAITING_RECEIVER_DECIDE',
-          [`roundMap.${roundIndex}.receiverUnlockedTime`]: Timestamp.now(),
+          [`roundMap.${roundIndex}.receiverUnlockedTime`]: now,
+        };
+        transaction.update(publicDataRef, updateData);
+      }
+
+      // B2. RECEIVER SAW MESSAGE (record timestamp when receiver first sees the message)
+      if (action === 'receiver_saw_message') {
+        if (!isReceiver) {
+          return; // Silently ignore if not receiver
+        }
+        if (roundData.status !== 'WAITING_RECEIVER_DECIDE') {
+          return; // Silently ignore if not in correct state
+        }
+        if (roundData.receiverSawMessageTime) {
+          return; // Already recorded, ignore duplicate
+        }
+        const updateData: Record<string, unknown> = {
+          [`roundMap.${roundIndex}.receiverSawMessageTime`]: Timestamp.now(),
         };
         transaction.update(publicDataRef, updateData);
       }
@@ -279,9 +352,27 @@ export const submitSenderReceiverAction = onCall<SenderReceiverActionData>(
           }
         }
 
+        const now = Timestamp.now();
+
+        // Calculate receiver reaction time in seconds
+        let receiverReactionTimeSeconds: number | null = null;
+        if (roundData.receiverUnlockedTime) {
+          const unlockedMs = roundData.receiverUnlockedTime.toMillis();
+          const nowMs = now.toMillis();
+          receiverReactionTimeSeconds = (nowMs - unlockedMs) / 1000;
+        }
+
         const updateData: Record<string, unknown> = {
           [`roundMap.${roundIndex}.receiverChoice`]: choice,
-          [`roundMap.${roundIndex}.receiverSubmittedTime`]: Timestamp.now(),
+          [`roundMap.${roundIndex}.receiverSubmittedTime`]: now,
+          [`roundMap.${roundIndex}.receiverReactionTimeSeconds`]:
+            receiverReactionTimeSeconds,
+          [`roundMap.${roundIndex}.receiverActiveTimeSeconds`]:
+            payload?.activeTimeSeconds ?? null,
+          [`roundMap.${roundIndex}.receiverTimedOut`]:
+            payload?.isTimedOut ?? false,
+          [`roundMap.${roundIndex}.defaultReceiverChoice`]:
+            payload?.defaultChoice ?? null,
           [`roundMap.${roundIndex}.senderPayoff`]: senderPayoff,
           [`roundMap.${roundIndex}.receiverPayoff`]: receiverPayoff,
           [`roundMap.${roundIndex}.status`]: 'SHOW_FEEDBACK',
@@ -338,9 +429,16 @@ export const submitSenderReceiverAction = onCall<SenderReceiverActionData>(
           return;
         }
 
-        // Init next round
-        const nextState =
-          Math.random() < (config.state1Probability ?? 0.5) ? 1 : 2;
+        // Use balanced state generation based on participant pair seed
+        const pairSeed = `${currentPublicData.senderId}-${currentPublicData.receiverId}-${stageId}`;
+        const roundDefaults = getRoundDefault(
+          nextRoundIndex,
+          config.numRounds,
+          config.state1Probability ?? 0.5,
+          pairSeed,
+        );
+        const nextState = roundDefaults.trueState;
+
         const newRoundData: SenderReceiverRoundData = {
           roundNumber: nextRoundIndex,
           trueState: nextState as 1 | 2,
@@ -351,6 +449,11 @@ export const submitSenderReceiverAction = onCall<SenderReceiverActionData>(
           receiverChoice: null,
           senderPayoff: null,
           receiverPayoff: null,
+          // Default options (will be set by frontend if enableBalancedDefaults is on)
+          defaultSenderLabel: null,
+          defaultReceiverChoice: null,
+          senderTimedOut: false,
+          receiverTimedOut: false,
           // Use firestore timestamps
           startTime: Timestamp.now() as unknown as UnifiedTimestamp,
           senderUnlockedTime: Timestamp.now() as unknown as UnifiedTimestamp,
@@ -358,6 +461,11 @@ export const submitSenderReceiverAction = onCall<SenderReceiverActionData>(
           receiverSawMessageTime: null,
           receiverUnlockedTime: null,
           receiverSubmittedTime: null,
+          // Reaction times will be calculated when submitted
+          senderReactionTimeSeconds: null,
+          receiverReactionTimeSeconds: null,
+          senderActiveTimeSeconds: null,
+          receiverActiveTimeSeconds: null,
         };
 
         const updateData: Record<string, unknown> = {

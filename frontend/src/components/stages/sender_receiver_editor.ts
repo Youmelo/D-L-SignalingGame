@@ -34,9 +34,15 @@ export class SenderReceiverEditor extends MobxLitElement {
             'True State 1 Probability (0.0-1.0)',
             'state1Probability',
           )}
+        </div>
+        <div class="settings-row">
           ${this.renderNumberInput(
-            'Time Limit (Seconds)',
-            'timeLimitInMinutes',
+            'Sender Time Limit in Seconds (0 = no limit)',
+            'senderTimeLimitInSeconds',
+          )}
+          ${this.renderNumberInput(
+            'Receiver Time Limit in Seconds (0 = no limit)',
+            'receiverTimeLimitInSeconds',
           )}
         </div>
 
@@ -169,6 +175,25 @@ export class SenderReceiverEditor extends MobxLitElement {
           'showSenderDefaultChoice',
           'Show sender the default choice',
         )}
+        ${this.renderToggle(
+          'Enable Balanced Defaults',
+          'enableBalancedDefaults',
+          'Pre-select options with balanced A/B distribution per state',
+        )}
+
+        <div class="section-header">
+          <div class="title">Default Messages (for text mode)</div>
+        </div>
+        <div class="settings-row">
+          ${this.renderTextInput(
+            'Default Message for Option A',
+            'defaultMessageForA',
+          )}
+          ${this.renderTextInput(
+            'Default Message for Option B',
+            'defaultMessageForB',
+          )}
+        </div>
       </div>
     `;
   }

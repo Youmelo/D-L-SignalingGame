@@ -70,6 +70,8 @@ import {
   getChipNegotiationData,
   getChipNegotiationPlayerMapCSV,
   getParticipantDataCSV,
+  getSenderReceiverData,
+  getSenderReceiverCSV,
 } from '../shared/file.utils';
 import {
   isObsoleteParticipant,
@@ -951,6 +953,22 @@ export class ExperimentManager extends Service {
             new Blob(
               [
                 getChipNegotiationPlayerMapCSV(result, chipData)
+                  .map((row) => row.join(','))
+                  .join('\n'),
+              ],
+              {type: 'text/csv'},
+            ),
+          );
+        }
+
+        // Add sender-receiver data to zip
+        const senderReceiverData = getSenderReceiverData(result);
+        if (senderReceiverData.length > 0) {
+          zip.file(
+            `${experimentName}_SenderReceiver.csv`,
+            new Blob(
+              [
+                getSenderReceiverCSV(senderReceiverData)
                   .map((row) => row.join(','))
                   .join('\n'),
               ],

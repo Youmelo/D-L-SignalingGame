@@ -19,6 +19,9 @@ import {
   PayoutStageConfig,
   PayoutStageParticipantAnswer,
   RankingStageConfig,
+  SenderReceiverStageConfig,
+  SenderReceiverStagePublicData,
+  SenderReceiverRoundData,
   StageKind,
   SurveyPerParticipantStageConfig,
   SurveyQuestionKind,
@@ -1314,4 +1317,326 @@ export function getChatMessageCSVColumns(
   columns.push(!message ? 'Message content' : toCSV(message.message));
 
   return columns;
+}
+
+// ****************************************************************************
+// SENDER-RECEIVER CSV FUNCTIONS
+// ****************************************************************************
+
+/**
+ * Detect anomaly in timeout submission
+ * Compares reactionTime (server-side) vs activeTime (client-side) to detect
+ * if page was refreshed/reloaded during the decision period.
+ *
+ * @param timedOut - Whether the participant timed out
+ * @param reactionTimeSeconds - Total time from unlock to submit (server-side)
+ * @param activeTimeSeconds - Time from page render to submit (client-side)
+ * @param timeLimitSeconds - The time limit for this role
+ * @returns 'normal' | 'possible_refresh' | 'data_missing' | 'no_timeout'
+ */
+function detectAnomalyFlag(
+  timedOut: boolean,
+  reactionTimeSeconds: number | null,
+  activeTimeSeconds: number | null,
+  timeLimitSeconds: number | null,
+): string {
+  // If no timeout, not applicable
+  if (!timedOut) {
+    return 'no_timeout';
+  }
+
+  // If missing data, can't determine
+  if (reactionTimeSeconds === null || activeTimeSeconds === null) {
+    return 'data_missing';
+  }
+
+  // Tolerance: 5 seconds for network latency and timing differences
+  const TOLERANCE_SECONDS = 5;
+  const timeDifference = reactionTimeSeconds - activeTimeSeconds;
+
+  if (timeDifference > TOLERANCE_SECONDS) {
+    // Significant gap: page was likely refreshed/reloaded during decision
+    // activeTime is much shorter than reactionTime
+    return 'possible_refresh';
+  }
+
+  return 'normal';
+}
+
+export interface SenderReceiverRoundCSVData {
+  experimentName: string;
+  cohortId: string;
+  cohortName: string;
+  stageId: string;
+  stageName: string;
+  // Stage config fields for condition identification
+  allowTextMessage: boolean;
+  allowButtonPress: boolean;
+  enableBalancedDefaults: boolean;
+  senderTimeLimitInSeconds: number | null;
+  receiverTimeLimitInSeconds: number | null;
+  numRounds: number;
+  state1Probability: number;
+  // Round data
+  senderId: string;
+  receiverId: string;
+  roundNumber: number;
+  trueState: 1 | 2;
+  senderLabel: 'A' | 'B' | null;
+  senderMessage: string | null;
+  receiverChoice: 'A' | 'B' | null;
+  senderPayoff: number | null;
+  receiverPayoff: number | null;
+  senderCumulativePayoff: number;
+  receiverCumulativePayoff: number;
+  defaultSenderLabel: 'A' | 'B' | null;
+  defaultReceiverChoice: 'A' | 'B' | null;
+  senderTimedOut: boolean;
+  receiverTimedOut: boolean;
+  senderReactionTimeSeconds: number | null;
+  receiverReactionTimeSeconds: number | null;
+  senderActiveTimeSeconds: number | null;
+  receiverActiveTimeSeconds: number | null;
+  startTime: string;
+  senderUnlockedTime: string;
+  senderSubmittedTime: string;
+  receiverUnlockedTime: string;
+  receiverSawMessageTime: string;
+  receiverSubmittedTime: string;
+  // Anomaly flags (detect page refresh/network issues during timeout)
+  senderAnomalyFlag: string; // 'normal', 'possible_refresh', 'data_missing'
+  receiverAnomalyFlag: string; // 'normal', 'possible_refresh', 'data_missing'
+}
+
+/** Extract all Sender-Receiver round data from experiment download */
+export function getSenderReceiverData(
+  data: ExperimentDownload,
+): SenderReceiverRoundCSVData[] {
+  const rounds: SenderReceiverRoundCSVData[] = [];
+  const experimentName = data.experiment.metadata.name;
+
+  for (const [cohortId, cohortData] of Object.entries(data.cohortMap)) {
+    const cohortName =
+      cohortData.cohort.metadata.name || cohortId.substring(0, 8);
+
+    for (const [stageId, publicData] of Object.entries(cohortData.dataMap)) {
+      if (publicData.kind !== StageKind.SENDER_RECEIVER) continue;
+
+      const stageConfig = data.stageMap[stageId] as SenderReceiverStageConfig;
+      const stageName = stageConfig?.name || stageId.substring(0, 8);
+
+      // Extract stage config for condition identification
+      const allowTextMessage = stageConfig?.allowTextMessage ?? false;
+      const allowButtonPress = stageConfig?.allowButtonPress ?? true;
+      const enableBalancedDefaults =
+        stageConfig?.enableBalancedDefaults ?? false;
+      const senderTimeLimitInSeconds =
+        stageConfig?.senderTimeLimitInSeconds ?? null;
+      const receiverTimeLimitInSeconds =
+        stageConfig?.receiverTimeLimitInSeconds ?? null;
+      const numRounds = stageConfig?.numRounds ?? 0;
+      const state1Probability = stageConfig?.state1Probability ?? 0.5;
+
+      const srData = publicData as SenderReceiverStagePublicData;
+      const senderId = srData.senderId || '';
+      const receiverId = srData.receiverId || '';
+
+      // Sort rounds by roundNumber to calculate cumulative payoff correctly
+      const sortedRounds = Object.entries(srData.roundMap || {})
+        .map(([_, round]) => round as SenderReceiverRoundData)
+        .sort((a, b) => a.roundNumber - b.roundNumber);
+
+      let senderCumulativePayoff = 0;
+      let receiverCumulativePayoff = 0;
+
+      for (const r of sortedRounds) {
+        // Add current round payoff to cumulative
+        if (r.senderPayoff !== null) {
+          senderCumulativePayoff += r.senderPayoff;
+        }
+        if (r.receiverPayoff !== null) {
+          receiverCumulativePayoff += r.receiverPayoff;
+        }
+
+        rounds.push({
+          experimentName,
+          cohortId,
+          cohortName,
+          stageId,
+          stageName,
+          allowTextMessage,
+          allowButtonPress,
+          enableBalancedDefaults,
+          senderTimeLimitInSeconds,
+          receiverTimeLimitInSeconds,
+          numRounds,
+          state1Probability,
+          senderId,
+          receiverId,
+          roundNumber: r.roundNumber,
+          trueState: r.trueState,
+          senderLabel: r.senderLabel,
+          senderMessage: r.senderMessage,
+          receiverChoice: r.receiverChoice,
+          senderPayoff: r.senderPayoff,
+          receiverPayoff: r.receiverPayoff,
+          senderCumulativePayoff,
+          receiverCumulativePayoff,
+          defaultSenderLabel: r.defaultSenderLabel ?? null,
+          defaultReceiverChoice: r.defaultReceiverChoice ?? null,
+          senderTimedOut: r.senderTimedOut ?? false,
+          receiverTimedOut: r.receiverTimedOut ?? false,
+          senderReactionTimeSeconds: r.senderReactionTimeSeconds ?? null,
+          receiverReactionTimeSeconds: r.receiverReactionTimeSeconds ?? null,
+          senderActiveTimeSeconds: r.senderActiveTimeSeconds ?? null,
+          receiverActiveTimeSeconds: r.receiverActiveTimeSeconds ?? null,
+          startTime: r.startTime
+            ? convertUnifiedTimestampToISO(r.startTime)
+            : '',
+          senderUnlockedTime: r.senderUnlockedTime
+            ? convertUnifiedTimestampToISO(r.senderUnlockedTime)
+            : '',
+          senderSubmittedTime: r.senderSubmittedTime
+            ? convertUnifiedTimestampToISO(r.senderSubmittedTime)
+            : '',
+          receiverUnlockedTime: r.receiverUnlockedTime
+            ? convertUnifiedTimestampToISO(r.receiverUnlockedTime)
+            : '',
+          receiverSawMessageTime: r.receiverSawMessageTime
+            ? convertUnifiedTimestampToISO(r.receiverSawMessageTime)
+            : '',
+          receiverSubmittedTime: r.receiverSubmittedTime
+            ? convertUnifiedTimestampToISO(r.receiverSubmittedTime)
+            : '',
+          // Calculate anomaly flags
+          senderAnomalyFlag: detectAnomalyFlag(
+            r.senderTimedOut ?? false,
+            r.senderReactionTimeSeconds ?? null,
+            r.senderActiveTimeSeconds ?? null,
+            senderTimeLimitInSeconds,
+          ),
+          receiverAnomalyFlag: detectAnomalyFlag(
+            r.receiverTimedOut ?? false,
+            r.receiverReactionTimeSeconds ?? null,
+            r.receiverActiveTimeSeconds ?? null,
+            receiverTimeLimitInSeconds,
+          ),
+        });
+      }
+    }
+  }
+
+  return rounds;
+}
+
+/** Generate CSV rows for Sender-Receiver data */
+export function getSenderReceiverCSV(
+  data: SenderReceiverRoundCSVData[],
+): string[][] {
+  const headers = [
+    'Experiment',
+    'Cohort ID',
+    'Cohort Name',
+    'Stage ID',
+    'Stage Name',
+    // Stage config for condition identification
+    'Allow Text Message',
+    'Allow Button Press',
+    'Enable Balanced Defaults',
+    'Sender Time Limit (s)',
+    'Receiver Time Limit (s)',
+    'Num Rounds',
+    'State 1 Probability',
+    // Round data
+    'Sender ID',
+    'Receiver ID',
+    'Round',
+    'True State',
+    'Sender Label',
+    'Sender Message',
+    'Receiver Choice',
+    'Sender Payoff',
+    'Receiver Payoff',
+    'Sender Cumulative Payoff',
+    'Receiver Cumulative Payoff',
+    'Default Sender Label',
+    'Default Receiver Choice',
+    'Sender Timed Out',
+    'Receiver Timed Out',
+    'Sender Reaction Time (s)',
+    'Receiver Reaction Time (s)',
+    'Sender Active Time (s)',
+    'Receiver Active Time (s)',
+    'Start Time',
+    'Sender Unlocked Time',
+    'Sender Submitted Time',
+    'Receiver Unlocked Time',
+    'Receiver Saw Message Time',
+    'Receiver Submitted Time',
+    // Anomaly detection flags
+    'Sender Anomaly Flag',
+    'Receiver Anomaly Flag',
+  ];
+
+  const rows: string[][] = [headers];
+
+  for (const r of data) {
+    rows.push([
+      r.experimentName,
+      r.cohortId,
+      r.cohortName,
+      r.stageId,
+      r.stageName,
+      // Stage config
+      String(r.allowTextMessage),
+      String(r.allowButtonPress),
+      String(r.enableBalancedDefaults),
+      r.senderTimeLimitInSeconds !== null
+        ? String(r.senderTimeLimitInSeconds)
+        : '',
+      r.receiverTimeLimitInSeconds !== null
+        ? String(r.receiverTimeLimitInSeconds)
+        : '',
+      String(r.numRounds),
+      String(r.state1Probability),
+      // Round data
+      r.senderId,
+      r.receiverId,
+      String(r.roundNumber),
+      String(r.trueState),
+      r.senderLabel || '',
+      toCSV(r.senderMessage),
+      r.receiverChoice || '',
+      r.senderPayoff !== null ? String(r.senderPayoff) : '',
+      r.receiverPayoff !== null ? String(r.receiverPayoff) : '',
+      String(r.senderCumulativePayoff),
+      String(r.receiverCumulativePayoff),
+      r.defaultSenderLabel || '',
+      r.defaultReceiverChoice || '',
+      String(r.senderTimedOut),
+      String(r.receiverTimedOut),
+      r.senderReactionTimeSeconds !== null
+        ? String(r.senderReactionTimeSeconds)
+        : '',
+      r.receiverReactionTimeSeconds !== null
+        ? String(r.receiverReactionTimeSeconds)
+        : '',
+      r.senderActiveTimeSeconds !== null
+        ? String(r.senderActiveTimeSeconds)
+        : '',
+      r.receiverActiveTimeSeconds !== null
+        ? String(r.receiverActiveTimeSeconds)
+        : '',
+      r.startTime,
+      r.senderUnlockedTime,
+      r.senderSubmittedTime,
+      r.receiverUnlockedTime,
+      r.receiverSawMessageTime,
+      r.receiverSubmittedTime,
+      r.senderAnomalyFlag,
+      r.receiverAnomalyFlag,
+    ]);
+  }
+
+  return rows;
 }

@@ -72,20 +72,20 @@ export interface SenderReceiverRoundData {
 
   /*
    * Refined status flow:
-   * 1. WAITING_SENDER_READ: Sender sees the truth, but cannot submit yet.
-   * 2. WAITING_SENDER_DECIDE: Sender's input is unlocked for submission.
-   * 3. WAITING_RECEIVER_READ: Receiver sees the message, but cannot submit yet.
-   * 4. WAITING_RECEIVER_DECIDE: Receiver's choice buttons are unlocked.
-   * 5. SHOW_FEEDBACK: Round is over, results are displayed.
-   * 6. SURVEY: Optional survey after the round (if any)
+   * 0. WAITING_BOTH_START: Both players must click 'Start Game' to begin.
+   * 1. WAITING_SENDER_DECIDE: Sender sees the truth and can submit.
+   * 2. WAITING_RECEIVER_DECIDE: Receiver sees the message and can choose.
+   * 3. SHOW_FEEDBACK: Round is over, results are displayed.
    */
   status:
-    | 'WAITING_SENDER_READ'
+    | 'WAITING_BOTH_START'
     | 'WAITING_SENDER_DECIDE'
-    | 'WAITING_RECEIVER_READ'
     | 'WAITING_RECEIVER_DECIDE'
-    | 'SHOW_FEEDBACK'
-    | 'SURVEY';
+    | 'SHOW_FEEDBACK';
+
+  // Ready to start game flags (for first round only)
+  senderReadyStart?: boolean;
+  receiverReadyStart?: boolean;
 
   // Player actions
   senderLabel: 'A' | 'B' | null;
@@ -156,6 +156,7 @@ export interface SenderReceiverActionData {
   stageId: string;
   action:
     | 'assign_role'
+    | 'start_game'
     | 'sender_signal'
     | 'receiver_saw_message'
     | 'receiver_choice'
@@ -167,6 +168,9 @@ export interface SenderReceiverActionData {
     participantId?: string; // For assign_role
     requestedRole?: 'sender' | 'receiver'; // For assign_role (optional persistence)
     activeTimeSeconds?: number; // Time spent on page before submitting (for sender_signal and receiver_choice)
+    isTimedOut?: boolean; // Whether the submission was due to timeout
+    defaultLabel?: 'A' | 'B' | null; // The default option for sender before timeout
+    defaultChoice?: 'A' | 'B' | null; // The default option for receiver before timeout
   };
 }
 
@@ -187,20 +191,31 @@ export function createSenderReceiverStage(
     progress: createStageProgressConfig(),
 
     // Default Values
-    numRounds: 3,
+    numRounds: 4,
     state1Probability: 0.5,
     senderInstructionDetail: `## Role
 You are an **Advisor** working with two markets. 
 By advising a vendor about these markets, you earn a commission depending on the market they choose.
 
 ## Market Information
-The profitability of each market varies depending on customer flow, which **only you will know in advance**.`,
+The profitability of each market varies depending on customer flow, which **only you will know in advance**.
+
+## Time limit: 20 seconds
+In each round, the system will send a message when the time limit is reached.
+If no new input has been entered before that time, the system will send a pre-set option.
+`,
     receiverInstructionDetail: `## Role
 You are a **Vendor** choosing between two markets. 
 By selecting a market, you earn a return for your products depending on the market’s customer flow.
 
+
 ## Market Information
-The profitability of each market varies depending on customer flow, which you will learn from your **advisor’s recommendation.`,
+The profitability of each market varies depending on customer flow, which you will learn from your **advisor’s recommendation**.
+
+## Time limit: 20 seconds
+In each round, the system will send a message when the time limit is reached.
+If no new input has been entered before that time, the system will send a pre-set option.
+`,
 
     ReceiverLabel: 'Vendor',
     SenderLabel: 'Advisor',
