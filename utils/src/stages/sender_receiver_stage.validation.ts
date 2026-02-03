@@ -37,7 +37,11 @@ export const SenderReceiverStageConfigData = Type.Object(
     showSenderDefaultChoice: Type.Boolean(),
     showPayoffFeedback: Type.Boolean(),
 
-    timeLimitInMinutes: Type.Union([Type.Number(), Type.Null()]),
+    senderTimeLimitInSeconds: Type.Union([Type.Number(), Type.Null()]),
+    receiverTimeLimitInSeconds: Type.Union([Type.Number(), Type.Null()]),
+    enableBalancedDefaults: Type.Boolean(),
+    defaultMessageForA: Type.String(),
+    defaultMessageForB: Type.String(),
     defaultSenderChoice: Type.Union([
       Type.Literal('recommend_A'),
       Type.Literal('recommend_B'),
