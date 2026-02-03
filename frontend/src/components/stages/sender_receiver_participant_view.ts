@@ -483,7 +483,9 @@ export class SenderReceiverParticipantView extends MobxLitElement {
     const partnerReady = isSender
       ? round.receiverReadyStart
       : round.senderReadyStart;
-    const roleLabel = isSender ? 'Sender' : 'Receiver';
+    const roleLabel = isSender
+      ? (this.stage?.SenderLabel ?? 'Sender')
+      : (this.stage?.ReceiverLabel ?? 'Receiver');
 
     return html`
       <div class="waiting-screen start-game-screen">
