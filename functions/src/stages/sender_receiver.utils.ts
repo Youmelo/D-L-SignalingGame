@@ -67,13 +67,13 @@ export function createNewRound(
     trueState,
     status: initialStatus,
 
-    senderLabel: null,
+    senderChoice: null,
     senderMessage: null,
     receiverChoice: null,
     senderPayoff: null,
     receiverPayoff: null,
 
-    defaultSenderLabel: null,
+    defaultSenderChoice: null,
     defaultReceiverChoice: null,
     senderTimedOut: false,
     receiverTimedOut: false,

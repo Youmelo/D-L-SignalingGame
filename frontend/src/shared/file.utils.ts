@@ -1382,14 +1382,14 @@ export interface SenderReceiverRoundCSVData {
   receiverId: string;
   roundNumber: number;
   trueState: 1 | 2;
-  senderLabel: 'A' | 'B' | null;
+  senderChoice: 'A' | 'B' | null;
   senderMessage: string | null;
   receiverChoice: 'A' | 'B' | null;
   senderPayoff: number | null;
   receiverPayoff: number | null;
   senderCumulativePayoff: number;
   receiverCumulativePayoff: number;
-  defaultSenderLabel: 'A' | 'B' | null;
+  defaultSenderChoice: 'A' | 'B' | null;
   defaultReceiverChoice: 'A' | 'B' | null;
   senderTimedOut: boolean;
   receiverTimedOut: boolean;
@@ -1475,14 +1475,14 @@ export function getSenderReceiverData(
           receiverId,
           roundNumber: r.roundNumber,
           trueState: r.trueState,
-          senderLabel: r.senderLabel,
+          senderChoice: r.senderChoice,
           senderMessage: r.senderMessage,
           receiverChoice: r.receiverChoice,
           senderPayoff: r.senderPayoff,
           receiverPayoff: r.receiverPayoff,
           senderCumulativePayoff,
           receiverCumulativePayoff,
-          defaultSenderLabel: r.defaultSenderLabel ?? null,
+          defaultSenderChoice: r.defaultSenderChoice ?? null,
           defaultReceiverChoice: r.defaultReceiverChoice ?? null,
           senderTimedOut: r.senderTimedOut ?? false,
           receiverTimedOut: r.receiverTimedOut ?? false,
@@ -1604,14 +1604,14 @@ export function getSenderReceiverCSV(
       r.receiverId,
       String(r.roundNumber),
       String(r.trueState),
-      r.senderLabel || '',
+      r.senderChoice || '',
       toCSV(r.senderMessage),
       r.receiverChoice || '',
       r.senderPayoff !== null ? String(r.senderPayoff) : '',
       r.receiverPayoff !== null ? String(r.receiverPayoff) : '',
       String(r.senderCumulativePayoff),
       String(r.receiverCumulativePayoff),
-      r.defaultSenderLabel || '',
+      r.defaultSenderChoice || '',
       r.defaultReceiverChoice || '',
       String(r.senderTimedOut),
       String(r.receiverTimedOut),

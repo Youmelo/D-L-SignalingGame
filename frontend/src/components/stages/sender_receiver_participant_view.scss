@@ -1,29 +1,41 @@
 @use '../../sass/common';
 @use '../../sass/typescale';
 
+// Use shared spacing constants
+$spacing-sm: common.$spacing-small;
+$spacing-md: common.$spacing-medium;
+$spacing-lg: common.$spacing-large;
+$spacing-xl: common.$spacing-xl;
+$spacing-xxl: common.$spacing-xxl;
+
+/* Shared countdown base styles */
+%countdown-base {
+  @include common.flex-row-align-center;
+  justify-content: center;
+  gap: $spacing-md;
+  margin: $spacing-lg auto;
+  border-radius: $spacing-md;
+}
+
 /* Countdown Timer Display */
 .countdown-display {
-  @include common.flex-row;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 12px 24px;
-  margin: 16px auto;
-  background-color: #e8f0fe;
-  border: 2px solid #1a73e8;
-  border-radius: 8px;
+  @extend %countdown-base;
+  padding: $spacing-lg $spacing-xxl;
+  background-color: var(--md-sys-color-primary-container);
+  border: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   font-size: 1.5rem;
   font-weight: bold;
-  color: #1a73e8;
+  color: var(--md-sys-color-primary);
 
   md-icon {
     font-size: 1.5rem;
   }
 
   &.urgent {
-    background-color: #fce8e6;
-    border-color: #d93025;
-    color: #d93025;
+    background-color: var(--md-sys-color-error-container);
+    border-color: var(--md-sys-color-error);
+    color: var(--md-sys-color-error);
     animation: pulse 1s infinite;
   }
 }
@@ -40,21 +52,17 @@
 
 /* Partner Countdown Display (for waiting panels) */
 .partner-countdown-display {
-  @include common.flex-row;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 8px 16px;
-  margin: 12px auto;
-  background-color: #f5f5f5;
-  border: 1px solid #999;
-  border-radius: 6px;
+  @extend %countdown-base;
+  padding: $spacing-md $spacing-xl;
+  background-color: var(--md-sys-color-surface-container);
+  border: none;
+  border-radius: $spacing-md;
   font-size: 1rem;
-  color: #666;
+  color: var(--md-sys-color-on-surface-variant);
 
   md-icon {
     font-size: 1.2rem;
-    color: #888;
+    color: var(--md-sys-color-outline);
   }
 }
 
@@ -67,100 +75,88 @@
   }
 }
 
-/* Timeout indicator styles */
-.timeout-indicator {
-  color: #d93025;
-  font-style: italic;
-  font-size: 0.9em;
-}
-
-.partner-timeout-note {
-  color: #666;
-  font-style: italic;
-  font-size: 0.9em;
-  margin-top: 4px;
-}
-
 /* Loading spinner icon */
 .loading-icon {
   font-size: 48px;
-  color: #1a73e8;
+  color: var(--md-sys-color-primary);
   animation: spin 1s linear infinite;
 }
 
 /* Waiting icon (gray hourglass) */
 .waiting-icon {
   font-size: 48px;
-  color: #aaa;
+  color: var(--md-sys-color-outline);
 }
 
 /* Wrapper for icons with margin */
 .icon-wrapper {
-  margin-top: 20px;
+  margin-top: $spacing-xl;
 }
 
 /* Footer with margin */
 .stage-finished-footer {
-  margin-top: 24px;
+  margin-top: $spacing-xxl;
 }
 
 /* Unified Payoff Table Styles - Shared by Sender Cards and Receiver Info Cards */
 .payoff-details-container {
   @include common.flex-column;
-  gap: 8px;
+  gap: $spacing-md;
   font-size: 0.9rem;
   width: 100%;
 }
 
 .payoff-row {
   @include common.flex-column;
-  padding: 10px;
-  border-radius: 6px;
-  background-color: #fff;
-  border: 1px solid #dadce0; /* Default border for unselected/neutral */
-  color: #3c4043; /* Default text color */
+  padding: $spacing-lg;
+  border-radius: $spacing-md;
+  background-color: var(--md-sys-color-surface-container-low);
+  border: none;
+  color: var(--md-sys-color-on-surface);
 
   &.highlight-row {
-    background-color: #e8f0fe; /* Blue background */
-    border: 1px solid #1a73e8; /* Blue border */
-    color: #1a73e8; /* Blue text */
+    background-color: var(--md-sys-color-primary-container);
+    border: none;
+    color: var(--md-sys-color-on-primary-container);
 
     .role-payoff b {
       font-weight: 700;
       font-size: 1.1em;
+      color: var(--md-sys-color-primary);
     }
   }
 
-  /* Mismatched/Unselected state */
   &.dimmed-row {
-    background-color: #f8f9fa;
-    color: #5f6368; /* Slightly muted text for unselected */
-    border-color: transparent; /* Or keep light border */
-    opacity: 1;
-  }
-
-  .state-label {
-    font-weight: bold;
-    font-size: 0.85rem;
-    margin-bottom: 4px;
-    text-transform: uppercase;
-    opacity: 0.9;
+    background-color: var(--md-sys-color-surface-variant);
+    color: var(--md-sys-color-on-surface-variant);
+    border-color: transparent;
   }
 
   .role-payoff {
     @include common.flex-row;
     justify-content: space-between;
-    padding: 2px 8px;
+    padding: 2px $spacing-md;
   }
 }
 
-.waiting-screen,
-.waiting-panel {
+.waiting-screen {
   @include common.flex-column;
   align-items: center;
   justify-content: center;
   height: 100%;
   padding: 40px;
+  text-align: center;
+
+  p {
+    font-size: 1.1rem;
+    color: var(--md-sys-color-on-surface-variant);
+    margin-bottom: 20px;
+  }
+}
+
+.waiting-panel {
+  // Uses shared styles from .reading-panel, .action-panel, .feedback-panel, .waiting-panel block
+  // Additional waiting-specific styles:
   text-align: center;
 
   p {
@@ -225,198 +221,301 @@
   }
 }
 
+/* Fixed Chat Window - Always visible during game phases */
+.fixed-chat-window {
+  width: 100%;
+  margin: $spacing-xl 0;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: $spacing-lg;
+  background: var(--md-sys-color-surface);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+
+  .chat-window-header {
+    @include common.flex-row-align-center;
+    gap: $spacing-md;
+    padding: $spacing-lg $spacing-xl;
+    background: var(--md-sys-color-surface-container);
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+
+    md-icon {
+      font-size: 18px;
+      color: var(--md-sys-color-primary);
+    }
+
+    .chat-title {
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--md-sys-color-on-surface);
+    }
+  }
+
+  .chat-window-body {
+    min-height: 80px;
+    max-height: 120px;
+    padding: $spacing-lg $spacing-xl;
+    @include common.flex-column;
+    justify-content: center;
+  }
+
+  .chat-empty-state {
+    @include common.flex-column-align-center;
+    justify-content: center;
+    height: 100%;
+    color: var(--md-sys-color-outline);
+    font-size: 0.9rem;
+    gap: $spacing-md;
+
+    md-icon {
+      font-size: 28px;
+      opacity: 0.5;
+    }
+  }
+
+  .chat-message {
+    @include common.flex-row;
+    align-items: flex-start;
+    gap: $spacing-lg;
+
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--md-sys-color-primary);
+      color: var(--md-sys-color-on-primary);
+      @include common.flex-row-align-center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+
+    .message-body {
+      @include common.flex-column;
+      align-items: flex-start;
+      gap: $spacing-sm;
+
+      .sender-name {
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: var(--md-sys-color-on-surface);
+        text-align: left;
+      }
+
+      .message-text {
+        padding: $spacing-md $spacing-lg;
+        background: var(--md-sys-color-tertiary-container);
+        border-radius: $spacing-sm $spacing-lg $spacing-lg $spacing-lg;
+        color: var(--md-sys-color-on-tertiary-container);
+        font-size: 0.95rem;
+        line-height: 1.4;
+        max-width: fit-content;
+      }
+    }
+  }
+}
+
 /* Round instruction text styles */
 .round-context-text {
   text-align: center;
-  color: #555;
-  margin-bottom: 16px;
+  color: var(--md-sys-color-on-surface-variant);
+  margin-bottom: $spacing-xl;
   line-height: 1.5;
 }
 
 .action-instruction {
   text-align: center;
-  color: #1a73e8;
+  color: var(--md-sys-color-primary);
   font-weight: 600;
-  margin-top: 20px;
+  margin-top: $spacing-xl;
   font-size: 1.1em;
 }
 
 /* Cards container for sender decision */
 .sender-cards-container {
   display: flex;
-  gap: 16px;
-  margin-top: 20px;
+  gap: $spacing-xl;
+  margin-top: $spacing-xl;
 }
 
 /* Confirm button wrapper */
 .confirm-button-wrapper {
-  margin-top: 32px;
+  margin-top: $spacing-xxl + $spacing-md;
   display: flex;
   justify-content: center;
 }
 
 /* Primary action button styling */
 .primary-action-btn {
-  --md-filled-button-container-color: #1a73e8;
+  --md-filled-button-container-color: var(--md-sys-color-primary);
   font-size: 1.1em;
-  padding: 10px 24px;
+  padding: $spacing-lg $spacing-xxl;
 }
 
 /* Result details container */
 .result-details {
   display: flex;
   justify-content: center;
-  gap: 30px;
-  margin: 20px 0;
+  gap: $spacing-xxl + $spacing-md;
+  margin: $spacing-xl 0;
+
+  .score-card {
+    text-align: center;
+    padding: $spacing-xl $spacing-xxl;
+    background: var(--md-sys-color-surface-container);
+    border-radius: $spacing-md;
+    min-width: 100px;
+
+    .label {
+      font-size: 0.9rem;
+      color: var(--md-sys-color-on-surface-variant);
+      margin-bottom: $spacing-md;
+    }
+
+    .score {
+      font-size: 1.5rem;
+      color: var(--md-sys-color-primary);
+    }
+  }
 }
 
 /* Cumulative payoff display */
 .cumulative-payoff {
-  margin-top: 16px;
-  padding: 12px 20px;
-  background: var(--md-sys-color-primary-container, #e8f0fe);
-  border-radius: 8px;
+  display: inline-block;
+  margin: $spacing-xl auto 0;
+  padding: $spacing-lg $spacing-xxl;
+  background: var(--md-sys-color-secondary-container);
+  border-radius: $spacing-md;
   text-align: center;
   font-size: 1.1em;
+  color: var(--md-sys-color-on-secondary-container);
 
   b {
-    color: var(--md-sys-color-primary, #1a73e8);
+    color: var(--md-sys-color-secondary);
     font-size: 1.2em;
   }
 }
 
 /* Waiting text for next round */
 .waiting-next-text {
-  margin-top: 20px;
-  color: #666;
+  margin-top: $spacing-xl;
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 /* Next round button wrapper */
 .next-round-wrapper {
-  margin-top: 20px;
-}
-
-/* Selected card state */
-.decision-card.selected-card {
-  border: 2px solid #1a73e8;
-  background-color: #f0f7ff;
+  margin-top: $spacing-xl;
 }
 
 /* Payoff info card content */
 .payoff-info-content {
   text-align: left;
-  margin-top: 10px;
+  margin-top: $spacing-lg;
 }
 
 .reading-panel,
 .action-panel,
-.feedback-panel {
-  max-width: 800px;
+.feedback-panel,
+.waiting-panel {
+  max-width: common.$info-content-max-width;
   margin: 0 auto;
-  padding: 30px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: $spacing-xxl + $spacing-md;
+  background: var(--md-sys-color-surface);
+  border-radius: $spacing-md;
+  box-shadow: var(--md-sys-color-box-shadow-1, 0 1px 3px rgba(0, 0, 0, 0.1));
 }
 
 .reading-panel {
   .instruction-box {
-    background: #f8f9fa;
-    padding: 20px;
-    border-left: 4px solid #1a73e8;
-    margin-bottom: 24px;
+    background: var(--md-sys-color-surface-variant);
+    padding: $spacing-xl;
+    border-left: 4px solid var(--md-sys-color-primary);
+    margin-bottom: $spacing-xxl;
     line-height: 1.6;
-    border-radius: 4px;
-    color: #202124;
+    border-radius: $spacing-sm;
+    color: var(--md-sys-color-on-surface);
   }
 
   .message-box {
-    background: #e6f4ea;
-    padding: 20px 24px;
-    border: 2px solid #34a853;
-    border-radius: 12px;
-    margin-bottom: 24px;
-    color: #137333;
+    @include common.chip;
+    &.success {
+      @extend .message-box;
+    }
+    background: var(--md-sys-color-secondary-container);
+    padding: $spacing-xl $spacing-xxl;
+    border: none;
+    border-radius: $spacing-lg;
+    margin-bottom: $spacing-xxl;
+    color: var(--md-sys-color-on-secondary-container);
     text-align: center;
     font-size: 1.25rem;
     font-weight: 500;
-    box-shadow: 0 2px 8px rgba(52, 168, 83, 0.15);
-
-    .sender-msg-text {
-      margin-top: 8px;
-      font-style: italic;
-      color: #137333;
-    }
   }
 
   .action-footer {
     display: flex;
     justify-content: flex-end;
-    margin-top: 24px;
+    margin-top: $spacing-xxl;
   }
 }
 
 .action-panel {
   .status-reveal {
     font-size: 1.25rem;
-    padding: 16px;
-    background: #e6f4ea;
-    color: #137333;
-    border: 1px solid #ceead6;
-
-    border-radius: 8px;
+    padding: $spacing-xl;
+    background: var(--md-sys-color-surface-container-high);
+    color: var(--md-sys-color-on-surface);
+    border: none;
+    border-radius: $spacing-md;
     text-align: center;
-    margin-bottom: 24px;
+    margin-bottom: $spacing-xxl;
   }
 
-  /* Integrated Decision Cards for Sender */
-  .cards-container {
-    display: flex;
-    gap: 20px;
-    margin-top: 24px;
-    flex-wrap: wrap; /* responsive */
-  }
-
+  /* Decision and Info Cards - shared base styles */
   .decision-card,
   .info-card {
     flex: 1;
     min-width: 280px;
-    border: 1px solid #dadce0;
-    border-radius: 12px;
-    padding: 20px;
-    background-color: #fff;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: $spacing-lg;
+    padding: $spacing-xl;
+    background-color: var(--md-sys-color-surface);
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     transition: all 0.2s ease-in-out;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 
     h4 {
-      margin: 0 0 12px 0;
+      margin: 0 0 $spacing-lg 0;
       font-size: 1.2rem;
-      color: #202124;
+      color: var(--md-sys-color-on-surface);
       font-weight: 600;
-      border-bottom: 2px solid #f1f3f4;
-      padding-bottom: 8px;
+      border-bottom: none;
+      padding-bottom: $spacing-sm;
       text-align: center;
-      margin-bottom: 16px;
+      margin-bottom: $spacing-lg;
     }
   }
 
   .decision-card {
-    /* .card-header specific overrides if any */
     .card-header {
       text-align: center;
-      margin-bottom: 16px;
+      margin-bottom: $spacing-xl;
     }
 
     .card-interaction {
       @include common.flex-column;
-      gap: 12px;
+      gap: $spacing-lg;
     }
 
     .message-input {
       width: 100%;
-      --md-outlined-text-field-container-shape: 8px;
+      --md-outlined-text-field-container-shape: $spacing-md;
+      --md-outlined-field-container-color: var(
+        --md-sys-color-surface-container
+      );
+      --md-sys-color-surface-variant: var(--md-sys-color-surface-container);
     }
 
     .action-btn {
@@ -424,11 +523,17 @@
       --md-filled-button-container-height: 48px;
     }
 
-    /* Active Typing State - Highlight the card */
+    /* Active Typing State */
     &.active-typing {
-      border-color: #1a73e8;
-      box-shadow: 0 4px 12px rgba(26, 115, 232, 0.15);
-      background-color: #f8fbff;
+      border-color: var(--md-sys-color-primary);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      transform: translateY(-2px);
+    }
+
+    /* Selected State */
+    &.selected-card {
+      border-color: var(--md-sys-color-outline);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
       transform: translateY(-2px);
     }
   }
@@ -437,26 +542,24 @@
 /* Receiver Specific */
 .payoff-matrix-display {
   display: flex;
-  gap: 16px;
-  margin: 20px 0;
-
-  /* Inherit shared card styles */
+  gap: $spacing-xl;
+  margin: $spacing-xl 0;
 }
 
 .receiver-action-area {
-  margin-top: 32px;
-  border-top: 1px solid #eee;
-  padding-top: 24px;
+  margin-top: $spacing-xxl + $spacing-md;
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  padding-top: $spacing-xxl;
   text-align: center;
 
   h4 {
-    margin-bottom: 20px;
-    color: #444;
+    margin-bottom: $spacing-xl;
+    color: var(--md-sys-color-on-surface-variant);
   }
 
   .button-row {
     display: flex;
-    gap: 24px;
+    gap: $spacing-xxl;
     justify-content: center;
 
     .signal-btn {
@@ -467,21 +570,21 @@
 
 .feedback-panel {
   text-align: center;
-  padding: 50px;
+  padding: $spacing-xxl * 2;
 
   h3 {
-    color: #1a73e8;
-    margin-bottom: 24px;
+    color: var(--md-sys-color-primary);
+    margin-bottom: $spacing-xxl;
   }
 
   p {
     font-size: 1.2rem;
-    margin: 10px 0;
+    margin: $spacing-lg 0;
   }
 
   .waiting-text {
-    margin-top: 30px;
+    margin-top: $spacing-xxl + $spacing-md;
     font-style: italic;
-    color: #888;
+    color: var(--md-sys-color-on-surface-variant);
   }
 }

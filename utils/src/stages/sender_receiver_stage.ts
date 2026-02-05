@@ -88,12 +88,12 @@ export interface SenderReceiverRoundData {
   receiverReadyStart?: boolean;
 
   // Player actions
-  senderLabel: 'A' | 'B' | null;
+  senderChoice: 'A' | 'B' | null;
   senderMessage: string | null;
   receiverChoice: 'A' | 'B' | null;
 
   // Default selections (pre-selected)
-  defaultSenderLabel: 'A' | 'B' | null;
+  defaultSenderChoice: 'A' | 'B' | null;
   defaultReceiverChoice: 'A' | 'B' | null;
   senderTimedOut: boolean;
   receiverTimedOut: boolean;
@@ -162,15 +162,13 @@ export interface SenderReceiverActionData {
     | 'receiver_choice'
     | 'next_round';
   payload?: {
-    senderLabel?: 'A' | 'B'; // For sender_signal
+    senderChoice?: 'A' | 'B'; // For sender_signal
     senderMessage?: string; // For sender_signal
     receiverChoice?: 'A' | 'B'; // For receiver_choice
     participantId?: string; // For assign_role
     requestedRole?: 'sender' | 'receiver'; // For assign_role (optional persistence)
     activeTimeSeconds?: number; // Time spent on page before submitting (for sender_signal and receiver_choice)
     isTimedOut?: boolean; // Whether the submission was due to timeout
-    defaultLabel?: 'A' | 'B' | null; // The default option for sender before timeout
-    defaultChoice?: 'A' | 'B' | null; // The default option for receiver before timeout
   };
 }
 

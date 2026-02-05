@@ -273,8 +273,22 @@ export const submitSenderReceiverAction = onCall<SenderReceiverActionData>(
           senderReactionTimeSeconds = (nowMs - unlockedMs) / 1000;
         }
 
+        // Calculate default sender choice on backend (more reliable than frontend)
+        let defaultSenderChoice: 'A' | 'B' | null = null;
+        if (config.enableBalancedDefaults) {
+          const pairSeed = `${currentPublicData.senderId}-${currentPublicData.receiverId}-${stageId}`;
+          const roundDefaults = getRoundDefault(
+            roundIndex,
+            config.numRounds,
+            config.state1Probability ?? 0.5,
+            pairSeed,
+          );
+          defaultSenderChoice = roundDefaults.senderDefault;
+        }
+
         const updateData: Record<string, unknown> = {
-          [`roundMap.${roundIndex}.senderLabel`]: payload?.senderLabel || null,
+          [`roundMap.${roundIndex}.senderChoice`]:
+            payload?.senderChoice || null,
           [`roundMap.${roundIndex}.senderMessage`]:
             payload?.senderMessage || null,
           [`roundMap.${roundIndex}.senderSubmittedTime`]: now,
@@ -284,8 +298,7 @@ export const submitSenderReceiverAction = onCall<SenderReceiverActionData>(
             payload?.activeTimeSeconds ?? null,
           [`roundMap.${roundIndex}.senderTimedOut`]:
             payload?.isTimedOut ?? false,
-          [`roundMap.${roundIndex}.defaultSenderLabel`]:
-            payload?.defaultLabel ?? null,
+          [`roundMap.${roundIndex}.defaultSenderChoice`]: defaultSenderChoice,
           // Transition directly to Receiver Actions
           [`roundMap.${roundIndex}.status`]: 'WAITING_RECEIVER_DECIDE',
           [`roundMap.${roundIndex}.receiverUnlockedTime`]: now,
@@ -362,6 +375,19 @@ export const submitSenderReceiverAction = onCall<SenderReceiverActionData>(
           receiverReactionTimeSeconds = (nowMs - unlockedMs) / 1000;
         }
 
+        // Calculate default receiver choice on backend (more reliable than frontend)
+        let defaultReceiverChoice: 'A' | 'B' | null = null;
+        if (config.enableBalancedDefaults) {
+          const pairSeed = `${currentPublicData.senderId}-${currentPublicData.receiverId}-${stageId}`;
+          const roundDefaults = getRoundDefault(
+            roundIndex,
+            config.numRounds,
+            config.state1Probability ?? 0.5,
+            pairSeed,
+          );
+          defaultReceiverChoice = roundDefaults.receiverDefault;
+        }
+
         const updateData: Record<string, unknown> = {
           [`roundMap.${roundIndex}.receiverChoice`]: choice,
           [`roundMap.${roundIndex}.receiverSubmittedTime`]: now,
@@ -372,7 +398,7 @@ export const submitSenderReceiverAction = onCall<SenderReceiverActionData>(
           [`roundMap.${roundIndex}.receiverTimedOut`]:
             payload?.isTimedOut ?? false,
           [`roundMap.${roundIndex}.defaultReceiverChoice`]:
-            payload?.defaultChoice ?? null,
+            defaultReceiverChoice,
           [`roundMap.${roundIndex}.senderPayoff`]: senderPayoff,
           [`roundMap.${roundIndex}.receiverPayoff`]: receiverPayoff,
           [`roundMap.${roundIndex}.status`]: 'SHOW_FEEDBACK',
@@ -444,13 +470,13 @@ export const submitSenderReceiverAction = onCall<SenderReceiverActionData>(
           trueState: nextState as 1 | 2,
           // Start next round
           status: 'WAITING_SENDER_DECIDE',
-          senderLabel: null,
+          senderChoice: null,
           senderMessage: null,
           receiverChoice: null,
           senderPayoff: null,
           receiverPayoff: null,
-          // Default options (will be set by frontend if enableBalancedDefaults is on)
-          defaultSenderLabel: null,
+          // Default options (will be calculated by backend)
+          defaultSenderChoice: null,
           defaultReceiverChoice: null,
           senderTimedOut: false,
           receiverTimedOut: false,
