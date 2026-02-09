@@ -171,6 +171,11 @@ export class SenderReceiverEditor extends MobxLitElement {
           'Show results after each round.',
         )}
         ${this.renderToggle(
+          'Require Participant Click',
+          'requireParticipantClick',
+          'Require participant to click Send button',
+        )}
+        ${this.renderToggle(
           'Show Default Choice',
           'showSenderDefaultChoice',
           'Show sender the default choice',

@@ -27,14 +27,14 @@ import {
 } from '@deliberation-lab/utils';
 import {styles} from './sender_receiver_participant_view.scss';
 
-/** Fixed payoff data type */
+// --- Types ---
+
 interface FixedPayoffData {
   type: 'fixed';
   sender: number | undefined;
   receiver: number | undefined;
 }
 
-/** Conditional payoff data type */
 interface ConditionalPayoffData {
   type: 'conditional';
   state1Sender: number | undefined;
@@ -47,11 +47,8 @@ interface ConditionalPayoffData {
 }
 
 type PayoffData = FixedPayoffData | ConditionalPayoffData;
-
-/** Role type */
 type Role = 'sender' | 'receiver';
 
-/** Unified label configuration */
 interface LabelConfig {
   senderLabel: string;
   receiverLabel: string;
@@ -61,7 +58,6 @@ interface LabelConfig {
   state2Label: string;
 }
 
-/** Round information */
 interface RoundInfo {
   currentRound: number;
   totalRounds: number;
@@ -79,35 +75,47 @@ export class SenderReceiverParticipantView extends MobxLitElement {
   @property() stage: SenderReceiverStageConfig | null = null;
   @property() answer: SenderReceiverStageParticipantAnswer | null = null;
 
+  // Loading states
   @state() isSignalingLoading = false;
   @state() isDecidingLoading = false;
   @state() isFeedbackLoading = false;
 
+  // Input states
   @state() chatMessageA = '';
   @state() chatMessageB = '';
+  @state() selectedOption: 'A' | 'B' | null = null;
 
+  // Local confirmation state (for timer logic)
+  @state() hasConfirmedChoice = false;
+  private decisionClickTimestamp: number | null = null;
+
+  // Lifecycle states
   @state() hasReadInstructions = false;
   @state() hasAttemptedAutoJoin = false;
   @state() detectedPreviousRole: 'sender' | 'receiver' | null = null;
-  @state() selectedOption: 'A' | 'B' | null = null;
 
+  // Timer states
   @state() countdownRemaining: number = 0;
   @state() partnerCountdownRemaining: number = 0;
   private countdownTimer: CountdownTimer | null = null;
   private partnerCountdownInterval: ReturnType<typeof setInterval> | null =
     null;
+
+  // Update trackers
   private lastRoundForTimer: number = 0;
   private lastStatusForTimer: string = '';
   private lastRoundForDefaults: number = 0;
   private lastRoundForSawMessage: number = 0;
-
-  // Track page render time for active time calculation
-  private pageRenderTimestamp: number = 0;
   private lastRoundForPageRender: number = 0;
   private lastStatusForPageRender: string = '';
+  private pageRenderTimestamp: number = 0;
 
   override disconnectedCallback() {
     super.disconnectedCallback();
+    this.cleanupTimers();
+  }
+
+  private cleanupTimers() {
     this.countdownTimer?.stop();
     if (this.partnerCountdownInterval) {
       clearInterval(this.partnerCountdownInterval);
@@ -126,6 +134,8 @@ export class SenderReceiverParticipantView extends MobxLitElement {
     }
   }
 
+  // --- Initialization Logic ---
+
   private maybeInitCountdownAndDefaults() {
     const publicData = this.cohortService.stagePublicDataMap[
       this.stage!.id
@@ -139,7 +149,6 @@ export class SenderReceiverParticipantView extends MobxLitElement {
     const isSender = publicData.senderId === myId;
     const isReceiver = publicData.receiverId === myId;
 
-    // Check if it's my turn or partner's turn
     const isMyTurn =
       (isSender && round.status === 'WAITING_SENDER_DECIDE') ||
       (isReceiver && round.status === 'WAITING_RECEIVER_DECIDE');
@@ -148,6 +157,7 @@ export class SenderReceiverParticipantView extends MobxLitElement {
       (isSender && round.status === 'WAITING_RECEIVER_DECIDE') ||
       (isReceiver && round.status === 'WAITING_SENDER_DECIDE');
 
+    // Timer Init
     const timerKey = `${publicData.currentRound}-${round.status}`;
     if (
       (isMyTurn || isPartnersTurn) &&
@@ -158,17 +168,17 @@ export class SenderReceiverParticipantView extends MobxLitElement {
       this.initCountdownForRound(round, isSender, publicData);
     }
 
+    // Stop invalid timers
     if (!isMyTurn && this.countdownTimer?.isRunning()) {
       this.countdownTimer.stop();
     }
-
     if (!isPartnersTurn && this.partnerCountdownInterval) {
       clearInterval(this.partnerCountdownInterval);
       this.partnerCountdownInterval = null;
       this.partnerCountdownRemaining = 0;
     }
 
-    // Record page render time for active time calculation (reset on new round/status)
+    // Page Render Timestamp
     const pageRenderKey = `${publicData.currentRound}-${round.status}`;
     if (
       isMyTurn &&
@@ -180,7 +190,7 @@ export class SenderReceiverParticipantView extends MobxLitElement {
       this.pageRenderTimestamp = Date.now();
     }
 
-    // Record when receiver first sees the message
+    // Record "Receiver Saw Message"
     if (
       isReceiver &&
       round.status === 'WAITING_RECEIVER_DECIDE' &&
@@ -191,14 +201,22 @@ export class SenderReceiverParticipantView extends MobxLitElement {
       this.recordReceiverSawMessage();
     }
 
+    // Reset Defaults on New Round
     if (publicData.currentRound !== this.lastRoundForDefaults) {
       this.lastRoundForDefaults = publicData.currentRound;
       this.selectedOption = null;
       this.chatMessageA = '';
       this.chatMessageB = '';
+      this.hasConfirmedChoice = false;
+      this.decisionClickTimestamp = null;
     }
 
-    if (this.selectedOption === null && this.stage?.enableBalancedDefaults) {
+    // Apply Balanced Defaults
+    if (
+      this.selectedOption === null &&
+      this.stage?.enableBalancedDefaults &&
+      this.stage?.showSenderDefaultChoice
+    ) {
       const seed = `${publicData.senderId}-${publicData.receiverId}-${this.stage.id}`;
       const defaults = getRoundDefault(
         publicData.currentRound,
@@ -227,24 +245,16 @@ export class SenderReceiverParticipantView extends MobxLitElement {
     isSender: boolean,
     publicData: SenderReceiverStagePublicData,
   ) {
-    this.countdownTimer?.stop();
-    if (this.partnerCountdownInterval) {
-      clearInterval(this.partnerCountdownInterval);
-      this.partnerCountdownInterval = null;
-    }
-
-    // Reset countdown values first
+    this.cleanupTimers();
     this.countdownRemaining = 0;
     this.partnerCountdownRemaining = 0;
 
-    // Get role-specific time limits
     const senderTimeLimit = this.stage?.senderTimeLimitInSeconds ?? 0;
     const receiverTimeLimit = this.stage?.receiverTimeLimitInSeconds ?? 0;
-
     const myTimeLimit = isSender ? senderTimeLimit : receiverTimeLimit;
     const partnerTimeLimit = isSender ? receiverTimeLimit : senderTimeLimit;
 
-    // Initialize my own countdown (only if I'm the one who should be acting)
+    // My Timer
     const isMyTurn =
       (isSender && round.status === 'WAITING_SENDER_DECIDE') ||
       (!isSender && round.status === 'WAITING_RECEIVER_DECIDE');
@@ -263,7 +273,6 @@ export class SenderReceiverParticipantView extends MobxLitElement {
         }
 
         this.countdownRemaining = Math.ceil(remainingSeconds);
-
         this.countdownTimer = new CountdownTimer({
           durationSeconds: Math.ceil(remainingSeconds),
           onTick: (remaining) => {
@@ -277,7 +286,7 @@ export class SenderReceiverParticipantView extends MobxLitElement {
       }
     }
 
-    // Initialize partner's countdown display (using interval to update every second)
+    // Partner Timer
     const isPartnersTurn =
       (isSender && round.status === 'WAITING_RECEIVER_DECIDE') ||
       (!isSender && round.status === 'WAITING_SENDER_DECIDE');
@@ -287,7 +296,6 @@ export class SenderReceiverParticipantView extends MobxLitElement {
         ? round.receiverUnlockedTime
         : round.senderUnlockedTime;
       if (partnerStartTimestamp) {
-        // Calculate and update partner's remaining time
         const updatePartnerCountdown = () => {
           const elapsed = getTimeElapsed(partnerStartTimestamp, 's');
           const remaining = Math.max(0, partnerTimeLimit - elapsed);
@@ -298,11 +306,7 @@ export class SenderReceiverParticipantView extends MobxLitElement {
             this.partnerCountdownInterval = null;
           }
         };
-
-        // Initial update
         updatePartnerCountdown();
-
-        // Update every second
         this.partnerCountdownInterval = setInterval(
           updatePartnerCountdown,
           1000,
@@ -311,197 +315,119 @@ export class SenderReceiverParticipantView extends MobxLitElement {
     }
   }
 
+  // --- Interaction Logic ---
+
+  private isSenderRole(): boolean {
+    const myId = this.participantService.profile?.publicId;
+    const publicData = this.cohortService.stagePublicDataMap[
+      this.stage!.id
+    ] as SenderReceiverStagePublicData;
+    return publicData?.senderId === myId;
+  }
+
+  private handleConfirmChoice() {
+    if (!this.selectedOption) return;
+
+    const isSender = this.isSenderRole();
+    const limit = isSender
+      ? (this.stage?.senderTimeLimitInSeconds ?? 0)
+      : (this.stage?.receiverTimeLimitInSeconds ?? 0);
+
+    // Always record decision timestamp immediately
+    this.decisionClickTimestamp = Date.now();
+    this.hasConfirmedChoice = true;
+
+    if (limit > 0) {
+      // Logic: Timer active -> Wait for timer (UI locked)
+    } else {
+      // Logic: No timer -> Submit immediately
+      this.handleTimeoutSubmit(isSender);
+    }
+  }
+
   private handleTimeoutSubmit(isSender: boolean) {
-    const choice = this.selectedOption ?? 'A';
+    if (!this.stage) return;
+
+    // Case 1: User explicitly confirmed choice (either now or waiting for timer)
+    if (this.hasConfirmedChoice && this.selectedOption) {
+      if (isSender) {
+        const msg =
+          this.selectedOption === 'A' ? this.chatMessageA : this.chatMessageB;
+        this.handleSenderSignalWithText(this.selectedOption, msg, false);
+      } else {
+        this.handleReceiverChoice(this.selectedOption, false);
+      }
+      return;
+    }
+
+    // Case 2: True timeout (no user action)
+    let choice = this.selectedOption;
     if (isSender) {
+      if (this.stage.requireParticipantClick) {
+        this.handleSenderSignalWithText(null, '', true);
+        this.selectedOption = null;
+        return;
+      }
+      // Auto-default logic
+      if (!choice) {
+        if (this.stage.defaultSenderChoice === 'recommend_A') choice = 'A';
+        else if (this.stage.defaultSenderChoice === 'recommend_B') choice = 'B';
+        else choice = 'A';
+      }
       const msg = choice === 'A' ? this.chatMessageA : this.chatMessageB;
       this.handleSenderSignalWithText(choice, msg, true);
     } else {
+      // Receiver default
+      if (!choice) choice = 'A';
       this.handleReceiverChoice(choice, true);
     }
   }
 
-  private detectPreviousRole() {
-    const myId = this.participantService.profile?.publicId;
-    if (!myId) return;
+  // --- Render Methods ---
 
-    let foundRole: 'sender' | 'receiver' | null = null;
-
-    // 1. Search entire history for any role assignment
-    for (const [sId, sData] of Object.entries(
-      this.cohortService.stagePublicDataMap,
-    )) {
-      if (sId === this.stage!.id) continue; // Skip current
-      if (sData.kind !== StageKind.SENDER_RECEIVER) continue;
-
-      const srData = sData as SenderReceiverStagePublicData;
-      if (srData.senderId === myId) foundRole = 'sender';
-      if (srData.receiverId === myId) foundRole = 'receiver';
-    }
-
-    // 2. IMPORTANT: Cross-reference with CURRENT stage reality
-    // If the role I *was* is now taken by someone else in THIS stage, I cannot claim it.
-    const currentPublic = this.cohortService.stagePublicDataMap[
-      this.stage!.id
-    ] as SenderReceiverStagePublicData;
-    if (currentPublic) {
-      if (
-        foundRole === 'sender' &&
-        currentPublic.senderId &&
-        currentPublic.senderId !== myId
-      ) {
-        // Role collision: I was Sender, but Sender is taken by someone else. History assumption invalid.
-        foundRole = null;
-      }
-      if (
-        foundRole === 'receiver' &&
-        currentPublic.receiverId &&
-        currentPublic.receiverId !== myId
-      ) {
-        foundRole = null;
-      }
-    }
-
-    // 3. Update state reactively
-    if (this.detectedPreviousRole !== foundRole) {
-      console.log(`[AutoJoin] Role history updated: ${foundRole}`);
-      this.detectedPreviousRole = foundRole;
-    }
-  }
-
-  private checkCurrentStageAutoJoin() {
-    const publicData = this.cohortService.stagePublicDataMap[this.stage!.id] as
-      | SenderReceiverStagePublicData
-      | undefined;
-    const myId = this.participantService.profile?.publicId;
-
-    if (!publicData || !myId) return;
-
-    const isSender = publicData.senderId === myId;
-    const isReceiver = publicData.receiverId === myId;
-
-    // If already assigned in this stage, mark as done
-    if (isSender || isReceiver) {
-      this.hasAttemptedAutoJoin = true;
-      return;
-    }
-
-    // If roles are FULL, mark done so we don't retry
-    if (publicData.senderId && publicData.receiverId) {
-      this.hasAttemptedAutoJoin = true;
-      return;
-    }
-
-    // Note: We do NOT auto-claim based on history anymore in this function.
-    // We rely on user clicking "Continue" in the UI.
-    // So nothing else to do here except mark as checked.
-    this.hasAttemptedAutoJoin = true;
-  }
-
-  /**
-   * Render Logic
-   */
   override render() {
-    // 1. check the stage & public data
-    if (!this.stage) {
-      return html`<div>Loading the content...</div>`;
-    }
+    if (!this.stage) return html`<div>Loading content...</div>`;
 
     const publicData = this.cohortService.stagePublicDataMap[this.stage.id];
     if (!publicData || publicData.kind !== StageKind.SENDER_RECEIVER) {
-      return html`<div>Loading the public data...</div>`;
+      return html`<div>Loading public data...</div>`;
     }
 
-    // 2. check authentication
     const myId = this.participantService.profile?.publicId;
-    if (!myId) return html`<div>Loading the authentication...</div>`;
+    if (!myId) return html`<div>Loading authentication...</div>`;
 
     const isSender = myId === publicData.senderId;
     const isReceiver = myId === publicData.receiverId;
 
-    // 3. Waiting Screen (If no role assigned yet)
-    if (!isSender && !isReceiver) {
-      if (this.isSignalingLoading) {
-        return html`
-          <div class="waiting-screen">
-            <p>Identifying your role and joining the game...</p>
-            <md-icon class="loading-icon">sync</md-icon>
-          </div>
-        `;
-      }
+    if (!isSender && !isReceiver)
+      return this.renderRoleAssignmentScreen(publicData, myId);
+    if (!this.hasReadInstructions)
+      return this.renderInstructionScreen(isSender);
 
-      // Dynamic UI based on history
-      const roleLabel = this.detectedPreviousRole
-        ? this.detectedPreviousRole === 'sender'
-          ? (this.stage?.SenderLabel ?? 'Sender')
-          : (this.stage?.ReceiverLabel ?? 'Receiver')
-        : null;
+    const roundNumber =
+      (publicData as SenderReceiverStagePublicData).currentRound ?? 1;
+    if (this.stage && roundNumber > this.stage.numRounds)
+      return this.renderStageFinished();
 
-      const title = roleLabel ? 'Welcome Back' : '';
-      const description = roleLabel
-        ? html`You are still the <strong>${roleLabel}</strong>.`
-        : html`Please join the game to be assigned a role.`;
-
-      const btnLabel = roleLabel ? 'Continue' : 'Join Game';
-
+    const round = (publicData as SenderReceiverStagePublicData).roundMap[
+      roundNumber
+    ];
+    if (!round) {
       return html` <div class="waiting-screen">
-        ${title ? html`<h3>${title}</h3>` : nothing}
-        <p>${description}</p>
-        <md-filled-button
-          ?disabled=${this.isSignalingLoading}
-          @click=${() =>
-            this.assignedRole(
-              publicData,
-              myId,
-              this.detectedPreviousRole ?? undefined,
-            )}
-        >
-          ${btnLabel}
-        </md-filled-button>
+        <h3>Waiting for Game to Start</h3>
+        <p>Waiting for players...</p>
+        <md-icon class="waiting-icon">hourglass_empty</md-icon>
       </div>`;
     }
 
-    // 4. Instruction Screen (Local only, shown once per session/refresh)
-    if (!this.hasReadInstructions) {
-      return this.renderInstructionScreen(isSender);
-    }
-
-    // 5. get current round data
-    const roundNumber = publicData.currentRound ?? 1;
-
-    // Check if stage is finished
-    if (this.stage && roundNumber > this.stage.numRounds) {
-      return this.renderStageFinished();
-    }
-
-    // NEW: Check if round is ready
-    const round = publicData.roundMap[roundNumber];
-    if (!round) {
-      // If I have a role, but round isn't ready => Waiting for partner
-      if (isSender || isReceiver) {
-        return html`
-          <div class="waiting-screen">
-            <h3>Waiting for Game to Start</h3>
-            <p>Waiting for other players to join...</p>
-            <div class="icon-wrapper">
-              <md-icon class="waiting-icon">hourglass_empty</md-icon>
-            </div>
-          </div>
-        `;
-      }
-      return html`<div>Loading the round data...</div>`;
-    }
-
-    // Check if waiting for both players to start
-    if (round.status === 'WAITING_BOTH_START') {
+    if (round.status === 'WAITING_BOTH_START')
       return this.renderWaitingBothStart(round, isSender);
-    }
 
-    // 4. Game Panel
     return isSender
       ? this.renderSenderPanel(round, isSender)
       : this.renderReceiverPanel(round, isReceiver);
   }
+
   private renderSenderPanel(round: SenderReceiverRoundData, isSender: boolean) {
     const labels = this.getLabels();
     const roundInfo = this.getRoundInfo();
@@ -509,92 +435,66 @@ export class SenderReceiverParticipantView extends MobxLitElement {
       round.trueState === 1 ? labels.state1Label : labels.state2Label;
 
     switch (round.status) {
-      case 'WAITING_BOTH_START':
-        return this.renderWaitingBothStart(round, isSender);
-
       case 'WAITING_SENDER_DECIDE':
-        return html`
-          <div class="action-panel">
-            <h3>Day ${roundInfo.currentRound}/${roundInfo.totalRounds}</h3>
-            ${this.renderFixedChatWindow(round)} ${this.renderCountdown()}
+        return html` <div class="action-panel">
+          <h3>Day ${roundInfo.currentRound}/${roundInfo.totalRounds}</h3>
+          ${this.renderFixedChatWindow(round)} ${this.renderCountdown()}
 
-            <p class="round-context-text">
-              The <strong>${labels.receiverLabel}</strong> (your matched
-              partner) will be asked to choose between
-              <strong>${labels.optionALabel}</strong> and
-              <strong>${labels.optionBLabel}</strong>. The actual state of the
-              <strong>${labels.optionBLabel}</strong> is revealed only to you,
-              not to the ${labels.receiverLabel}.
-            </p>
+          <p class="round-context-text">
+            The <strong>${labels.receiverLabel}</strong> will choose between
+            options. The state of <strong>${labels.optionBLabel}</strong> is
+            revealed only to you.
+          </p>
 
-            <div class="status-reveal">
-              <strong>Current State for ${labels.optionBLabel}:</strong>
-              ${currentStatusLabel}
-            </div>
-
-            <p class="action-instruction">
-              ${this.stage?.allowTextMessage
-                ? `Please type the message to send to the ${labels.receiverLabel}:`
-                : `Please press the signal to send to the ${labels.receiverLabel}:`}
-            </p>
-
-            <div class="sender-cards-container">
-              ${this.renderDecisionCard(
-                'A',
-                labels.optionALabel,
-                this.stage?.senderButtonLabel1 ?? 'Signal A',
-                this.getOptionAPayoff(),
-                'sender',
-                true,
-              )}
-              ${this.renderDecisionCard(
-                'B',
-                labels.optionBLabel,
-                this.stage?.senderButtonLabel2 ?? 'Signal B',
-                this.getOptionBPayoff(round.trueState),
-                'sender',
-                true,
-              )}
-            </div>
-
-            <div class="confirm-button-wrapper">
-              <md-filled-button
-                @click=${() => {
-                  if (!this.selectedOption) return;
-                  const msg =
-                    this.selectedOption === 'A'
-                      ? this.chatMessageA
-                      : this.chatMessageB;
-                  this.handleSenderSignalWithText(this.selectedOption, msg);
-                }}
-                ?disabled=${!this.selectedOption ||
-                this.isDecidingLoading ||
-                (!!this.stage?.allowTextMessage &&
-                  !(
-                    (this.selectedOption === 'A'
-                      ? this.chatMessageA
-                      : this.chatMessageB) || ''
-                  ).trim())}
-                class="primary-action-btn"
-              >
-                Send
-              </md-filled-button>
-            </div>
+          <div class="status-reveal">
+            <strong>Current State for ${labels.optionBLabel}:</strong>
+            ${currentStatusLabel}
           </div>
-        `;
+
+          <div class="sender-cards-container">
+            ${this.renderDecisionCard(
+              'A',
+              labels.optionALabel,
+              this.stage?.senderButtonLabel1 ?? 'Signal A',
+              this.getOptionAPayoff(),
+              'sender',
+              true,
+            )}
+            ${this.renderDecisionCard(
+              'B',
+              labels.optionBLabel,
+              this.stage?.senderButtonLabel2 ?? 'Signal B',
+              this.getOptionBPayoff(round.trueState),
+              'sender',
+              true,
+            )}
+          </div>
+
+          <div class="confirm-button-wrapper">
+            <md-filled-button
+              @click=${() => this.handleConfirmChoice()}
+              ?disabled=${!this.selectedOption ||
+              this.hasConfirmedChoice ||
+              this.isDecidingLoading}
+              class="primary-action-btn"
+            >
+              ${this.hasConfirmedChoice
+                ? 'Waiting for timer...'
+                : 'Send Signal'}
+            </md-filled-button>
+          </div>
+        </div>`;
 
       case 'WAITING_RECEIVER_DECIDE':
-        return html`
-          <div class="waiting-panel">
-            <h3>
-              Day ${roundInfo.currentRound}/${roundInfo.totalRounds} - Waiting
-              for ${labels.receiverLabel}...
-            </h3>
-            ${this.renderFixedChatWindow(round)}
-            ${this.renderPartnerCountdown(labels.receiverLabel)}
-            <p>Waiting for ${labels.receiverLabel} to make a choice...</p>
-          </div>
-        `;
+        return html` <div class="waiting-panel">
+          <h3>
+            Day ${roundInfo.currentRound}/${roundInfo.totalRounds} - Waiting for
+            ${labels.receiverLabel}...
+          </h3>
+          ${this.renderFixedChatWindow(round)}
+          ${this.renderPartnerCountdown(labels.receiverLabel)}
+          <p>Waiting for ${labels.receiverLabel} to make a choice...</p>
+        </div>`;
 
       case 'SHOW_FEEDBACK':
         if (this.stage?.showPayoffFeedback) {
@@ -603,11 +503,11 @@ export class SenderReceiverParticipantView extends MobxLitElement {
           setTimeout(() => this.handleNextRound(), 0);
           return html`<div></div>`;
         }
-
       default:
         return html`<div>Debug: Unknown Stage ${round.status}</div>`;
     }
   }
+
   private renderReceiverPanel(
     round: SenderReceiverRoundData,
     isReceiver: boolean,
@@ -616,73 +516,72 @@ export class SenderReceiverParticipantView extends MobxLitElement {
     const roundInfo = this.getRoundInfo();
 
     switch (round.status) {
-      case 'WAITING_BOTH_START':
-        return this.renderWaitingBothStart(round, false);
-
       case 'WAITING_SENDER_DECIDE':
-        return html`
-          <div class="waiting-panel">
-            <h3>
-              Day ${roundInfo.currentRound}/${roundInfo.totalRounds} - Waiting
-              for ${labels.senderLabel}...
-            </h3>
-            ${this.renderFixedChatWindow(round)}
-            ${this.renderPartnerCountdown(labels.senderLabel)}
-            <p>Waiting for ${labels.senderLabel} to send a message...</p>
-          </div>
-        `;
+        return html` <div class="waiting-panel">
+          <h3>
+            Day ${roundInfo.currentRound}/${roundInfo.totalRounds} - Waiting for
+            ${labels.senderLabel}...
+          </h3>
+          ${this.renderFixedChatWindow(round)}
+          ${this.renderPartnerCountdown(labels.senderLabel)}
+          <p>Waiting for ${labels.senderLabel} to send a message...</p>
+        </div>`;
 
       case 'WAITING_RECEIVER_DECIDE':
-        return html`
-          <div class="action-panel">
-            <h3>Day ${roundInfo.currentRound}/${roundInfo.totalRounds}</h3>
+        return html` <div class="action-panel">
+          <h3>Day ${roundInfo.currentRound}/${roundInfo.totalRounds}</h3>
+          ${this.renderCountdown()}
+          <p class="round-context-text">
+            After observing <strong>${labels.optionBLabel}</strong>, the
+            <strong>${labels.senderLabel}</strong> sent you a message.
+          </p>
+          ${this.renderFixedChatWindow(round)}
 
-            ${this.renderCountdown()}
+          <div class="payoff-matrix-display">
+            ${this.renderPayoffInfoCard(
+              labels.optionALabel,
+              this.getOptionAPayoff(),
+              'all',
+              'receiver',
+            )}
+            ${this.renderPayoffInfoCard(
+              labels.optionBLabel,
+              this.getOptionBPayoff(1),
+              'all',
+              'receiver',
+            )}
+          </div>
 
-            <p class="round-context-text">
-              After observing the actual state of
-              <strong>${labels.optionBLabel}</strong>, the
-              <strong>${labels.senderLabel}</strong> (your matched partner) sent
-              you a message.
-            </p>
-            ${this.renderFixedChatWindow(round)}
-
-            <div class="payoff-matrix-display">
-              ${this.renderPayoffInfoCard(
-                labels.optionALabel,
-                this.getOptionAPayoff(),
-                'all',
-                'receiver',
-              )}
-              ${this.renderPayoffInfoCard(
-                labels.optionBLabel,
-                this.getOptionBPayoff(1), // trueState doesn't matter when highlight is 'all'
-                'all',
-                'receiver',
-              )}
-            </div>
-
-            <div class="action-area receiver-action-area">
-              <p class="action-instruction">Please click on your choice:</p>
-              <div class="button-row">
-                <md-filled-button
-                  class="signal-btn"
-                  @click=${() => this.handleReceiverChoice('A')}
-                  ?disabled=${this.isDecidingLoading}
-                >
-                  ${this.stage?.receiverButtonLabel1 ?? 'Choose A'}
-                </md-filled-button>
-                <md-filled-button
-                  class="signal-btn"
-                  @click=${() => this.handleReceiverChoice('B')}
-                  ?disabled=${this.isDecidingLoading}
-                >
-                  ${this.stage?.receiverButtonLabel2 ?? 'Choose B'}
-                </md-filled-button>
-              </div>
+          <div class="action-area receiver-action-area">
+            <p class="action-instruction">Please click on your choice:</p>
+            <div class="button-row">
+              <md-filled-button
+                class="signal-btn"
+                @click=${() => {
+                  this.selectedOption = 'A';
+                  this.handleConfirmChoice();
+                }}
+                ?disabled=${this.isDecidingLoading || this.hasConfirmedChoice}
+              >
+                ${this.hasConfirmedChoice && this.selectedOption === 'A'
+                  ? 'Waiting...'
+                  : (this.stage?.receiverButtonLabel1 ?? 'Choose A')}
+              </md-filled-button>
+              <md-filled-button
+                class="signal-btn"
+                @click=${() => {
+                  this.selectedOption = 'B';
+                  this.handleConfirmChoice();
+                }}
+                ?disabled=${this.isDecidingLoading || this.hasConfirmedChoice}
+              >
+                ${this.hasConfirmedChoice && this.selectedOption === 'B'
+                  ? 'Waiting...'
+                  : (this.stage?.receiverButtonLabel2 ?? 'Choose B')}
+              </md-filled-button>
             </div>
           </div>
-        `;
+        </div>`;
 
       case 'SHOW_FEEDBACK':
         if (this.stage?.showPayoffFeedback) {
@@ -691,324 +590,13 @@ export class SenderReceiverParticipantView extends MobxLitElement {
           setTimeout(() => this.handleNextRound(), 0);
           return html`<div></div>`;
         }
-
       default:
         return html`<div>Debug: Unknown status ${round.status}</div>`;
     }
   }
 
-  // --- Network Actions ---
+  // --- Components: Cards & Tables ---
 
-  private async assignedRole(
-    publicData: SenderReceiverStagePublicData,
-    myId: string,
-    requestedRole?: 'sender' | 'receiver',
-  ) {
-    if (this.isSignalingLoading) return;
-    if (!myId) {
-      console.warn('[View] Skipping assignment: No User ID');
-      return;
-    }
-
-    this.isSignalingLoading = true;
-    console.log(
-      `[View] Attempting to assign role for User: ${myId} (Request: ${requestedRole})`,
-    );
-
-    try {
-      // Check if I can join (or if I'm auto-joining with a request)
-      if (
-        !publicData.senderId ||
-        (!publicData.receiverId && publicData.senderId !== myId) ||
-        requestedRole
-      ) {
-        await this.participantService.submitSenderReceiverAction({
-          stageId: this.stage!.id,
-          action: 'assign_role',
-          payload: {
-            participantId: myId,
-            requestedRole, // Pass the request
-          },
-        });
-        console.log('[View] Assign role request successfully sent.');
-      } else {
-        console.log('[View] Roles appear full or conflict detected. Skipping.');
-      }
-    } catch (e: unknown) {
-      console.error('[View] Failed to assign role. Detailed Error:', e);
-      const err = e as {code?: string};
-      if (err.code === 'unauthenticated' || err.code === 'permission-denied') {
-        console.error('[View] FATAL AUTH ERROR. Blocking further retries.');
-        return;
-      }
-    } finally {
-      if (this.isSignalingLoading) {
-        this.isSignalingLoading = false;
-      }
-    }
-  }
-
-  private async handleStartGame() {
-    if (this.isSignalingLoading) return;
-    this.isSignalingLoading = true;
-
-    try {
-      await this.participantService.submitSenderReceiverAction({
-        stageId: this.stage!.id,
-        action: 'start_game',
-        payload: {
-          participantId: this.participantService.profile?.publicId,
-        },
-      });
-      console.log('[View] Start game request successfully sent.');
-    } catch (e) {
-      console.error('[View] Failed to start game:', e);
-    } finally {
-      this.isSignalingLoading = false;
-    }
-  }
-
-  // --- Helper Methods ---
-
-  /** Get unified label configuration */
-  private getLabels(): LabelConfig {
-    return {
-      senderLabel: this.stage?.SenderLabel ?? 'Sender',
-      receiverLabel: this.stage?.ReceiverLabel ?? 'Receiver',
-      optionALabel: this.stage?.optionALabel ?? 'Option A',
-      optionBLabel: this.stage?.optionBLabel ?? 'Option B',
-      state1Label: this.stage?.state1Label ?? 'State 1',
-      state2Label: this.stage?.state2Label ?? 'State 2',
-    };
-  }
-
-  /** Get current round information */
-  private getRoundInfo(): RoundInfo {
-    return {
-      currentRound: this.getCurrentRound(),
-      totalRounds: this.stage?.numRounds ?? 1,
-    };
-  }
-
-  /** Build Option A payoff data */
-  private getOptionAPayoff(): FixedPayoffData {
-    return {
-      type: 'fixed',
-      sender: this.stage?.payoffSenderChoiceA,
-      receiver: this.stage?.payoffReceiverChoiceA,
-    };
-  }
-
-  /** Build Option B payoff data */
-  private getOptionBPayoff(trueState: 1 | 2): ConditionalPayoffData {
-    const labels = this.getLabels();
-    return {
-      type: 'conditional',
-      state1Sender: this.stage?.payoffSenderChoiceB1,
-      state1Receiver: this.stage?.payoffReceiverChoiceB1,
-      state2Sender: this.stage?.payoffSenderChoiceB2,
-      state2Receiver: this.stage?.payoffReceiverChoiceB2,
-      trueState,
-      state1Label: labels.state1Label,
-      state2Label: labels.state2Label,
-    };
-  }
-
-  // --- Helper Render Functions ---
-  // --- Render Waiting for Both Start ---
-  private renderWaitingBothStart(
-    round: SenderReceiverRoundData,
-    isSender: boolean,
-  ) {
-    const labels = this.getLabels();
-    const amIReady = isSender
-      ? round.senderReadyStart
-      : round.receiverReadyStart;
-    const partnerReady = isSender
-      ? round.receiverReadyStart
-      : round.senderReadyStart;
-    const roleLabel = isSender ? labels.senderLabel : labels.receiverLabel;
-
-    return html`
-      <div class="waiting-screen start-game-screen">
-        <h3>Ready to Start?</h3>
-        <p>You are the <strong>${roleLabel}</strong>.</p>
-        <p>Both players must click "Start Game" to begin.</p>
-
-        <div class="ready-status">
-          <div class="status-item ${amIReady ? 'ready' : ''}">
-            <md-icon
-              >${amIReady ? 'check_circle' : 'radio_button_unchecked'}</md-icon
-            >
-            <span>You: ${amIReady ? 'Ready' : 'Not Ready'}</span>
-          </div>
-          <div class="status-item ${partnerReady ? 'ready' : ''}">
-            <md-icon
-              >${partnerReady
-                ? 'check_circle'
-                : 'radio_button_unchecked'}</md-icon
-            >
-            <span>Partner: ${partnerReady ? 'Ready' : 'Not Ready'}</span>
-          </div>
-        </div>
-
-        ${amIReady
-          ? html`
-              <div class="waiting-for-partner">
-                <md-icon class="waiting-icon">hourglass_empty</md-icon>
-                <p>Waiting for your partner to start...</p>
-              </div>
-            `
-          : html`
-              <md-filled-button
-                @click=${() => this.handleStartGame()}
-                ?disabled=${this.isSignalingLoading}
-              >
-                ${this.isSignalingLoading ? 'Starting...' : 'Start Game'}
-              </md-filled-button>
-            `}
-      </div>
-    `;
-  }
-  private renderCountdown() {
-    if (this.countdownRemaining <= 0) {
-      return nothing;
-    }
-    const isUrgent = this.countdownRemaining <= 10;
-    return html`
-      <div class="countdown-display ${isUrgent ? 'urgent' : ''}">
-        <md-icon>timer</md-icon>
-        <span>${formatTime(this.countdownRemaining)}</span>
-      </div>
-    `;
-  }
-
-  private renderPartnerCountdown(partnerLabel: string) {
-    if (this.partnerCountdownRemaining <= 0) {
-      return nothing;
-    }
-    return html`
-      <div class="partner-countdown-display">
-        <md-icon>hourglass_top</md-icon>
-        <span
-          >${partnerLabel}'s remaining time:
-          ${formatTime(this.partnerCountdownRemaining)}</span
-        >
-      </div>
-    `;
-  }
-
-  private renderStageFinished() {
-    return html`
-      <div class="waiting-screen">
-        <h3>Block Finished</h3>
-        <p>This block is over. Please proceed to the next step.</p>
-        <div class="stage-finished-footer">
-          <md-filled-button
-            @click=${() => this.participantService.progressToNextStage()}
-          >
-            Next Step
-          </md-filled-button>
-        </div>
-      </div>
-    `;
-  }
-
-  private renderPayoffTable(
-    payoffData: PayoffData,
-    highlightMode: boolean | 'all' = true,
-    viewerRole: Role = 'sender',
-  ) {
-    const labels = this.getLabels();
-
-    // Always show sender first, then receiver (consistent order)
-    const firstLabel =
-      viewerRole === 'sender' ? 'You earn' : `${labels.senderLabel} earns`;
-    const secondLabel =
-      viewerRole === 'sender' ? `${labels.receiverLabel} earns` : 'You earn';
-
-    // Logic:
-    // If highlightMode is 'all', always return highlight-row.
-    // If highlightMode is true (sender view), return highlight-row only if matches trueState.
-    // If highlightMode is false (default/fallback), return '' (neutral).
-
-    if (payoffData.type === 'fixed') {
-      const shouldHighlight = highlightMode === 'all' || highlightMode === true;
-      return html`
-        <div class="payoff-details-container">
-          <div class="payoff-row ${shouldHighlight ? 'highlight-row' : ''}">
-            <div class="role-payoff">
-              <span>${firstLabel}:</span> <b>${payoffData.sender}</b>
-            </div>
-            <div class="role-payoff">
-              <span>${secondLabel}:</span> <b>${payoffData.receiver}</b>
-            </div>
-          </div>
-        </div>
-      `;
-    } else {
-      // Conditional
-      const getStateClass = (state: 1 | 2) => {
-        if (highlightMode === 'all') return 'highlight-row'; // NEW: Highlight all
-        if (highlightMode === false) return ''; // No highlight
-        // highlightMode === true (Sender View: Highlight True State Only)
-        return payoffData.trueState === state ? 'highlight-row' : 'dimmed-row';
-      };
-
-      return html`
-        <div class="payoff-details-container">
-          <div class="payoff-row ${getStateClass(1)}">
-            <div class="role-payoff">
-              <span>${firstLabel}:</span> <b>${payoffData.state1Sender}</b>
-            </div>
-            <div class="role-payoff">
-              <span>${secondLabel}:</span> <b>${payoffData.state1Receiver}</b>
-            </div>
-          </div>
-          <div class="payoff-row ${getStateClass(2)}">
-            <div class="role-payoff">
-              <span>${firstLabel}:</span> <b>${payoffData.state2Sender}</b>
-            </div>
-            <div class="role-payoff">
-              <span>${secondLabel}:</span> <b>${payoffData.state2Receiver}</b>
-            </div>
-          </div>
-        </div>
-      `;
-    }
-  }
-
-  private renderInstructionScreen(isSender: boolean) {
-    const labels = this.getLabels();
-    const roleLabel = isSender ? labels.senderLabel : labels.receiverLabel;
-    const title = `Instructions for ${roleLabel}`;
-    const content = isSender
-      ? this.stage?.senderInstructionDetail
-      : this.stage?.receiverInstructionDetail;
-
-    return html`
-      <div class="reading-panel">
-        <h3>${title}</h3>
-        <div class="instruction-box">
-          ${unsafeHTML(convertMarkdownToHTML(content || ''))}
-        </div>
-
-        <div class="action-footer">
-          <md-filled-button
-            @click=${() => {
-              this.hasReadInstructions = true;
-            }}
-          >
-            Start Game
-          </md-filled-button>
-        </div>
-      </div>
-    `;
-  }
-
-  /**
-   * Unified decision card renderer for both sender and receiver
-   */
   private renderDecisionCard(
     optionKey: 'A' | 'B',
     title: string,
@@ -1022,97 +610,245 @@ export class SenderReceiverParticipantView extends MobxLitElement {
     const currentMessage =
       optionKey === 'A' ? this.chatMessageA : this.chatMessageB;
     const isSelected = this.selectedOption === optionKey;
-
-    // Sender sees true state highlight, receiver sees all states equally
     const highlightMode = showTrueStateHighlight ? true : 'all';
 
-    return html`
-      <div
-        class="decision-card ${isTyping ? 'active-typing' : ''} ${isSelected
-          ? 'selected-card'
-          : ''}"
-      >
-        <div class="card-header">
-          <h4>${title}</h4>
-          ${this.renderPayoffTable(payoffData, highlightMode, viewerRole)}
-        </div>
-
-        <div class="card-interaction">
-          ${this.stage?.allowTextMessage
-            ? html`
-                <md-outlined-text-field
-                  type="textarea"
-                  rows="3"
-                  label="Recommend ${optionKey}"
-                  class="message-input"
-                  .value=${currentMessage}
-                  @input=${(e: InputEvent) =>
-                    this.handleTyping(
-                      optionKey,
-                      (e.target as HTMLInputElement).value,
-                    )}
-                  @paste=${(e: ClipboardEvent) => e.preventDefault()}
-                  @copy=${(e: ClipboardEvent) => e.preventDefault()}
-                  @cut=${(e: ClipboardEvent) => e.preventDefault()}
-                ></md-outlined-text-field>
-              `
-            : nothing}
-          ${this.stage?.allowButtonPress
-            ? html`
-                ${isSelected
-                  ? html`
-                      <md-filled-button
-                        @click=${() => {
-                          this.selectedOption = optionKey;
-                        }}
-                        class="action-btn"
-                      >
-                        <md-icon slot="icon">check</md-icon>
-                        ${btnLabel} (Selected)
-                      </md-filled-button>
-                    `
-                  : html`
-                      <md-elevated-button
-                        @click=${() => {
-                          this.selectedOption = optionKey;
-                        }}
-                        class="action-btn"
-                      >
-                        ${btnLabel}
-                      </md-elevated-button>
-                    `}
-              `
-            : nothing}
-        </div>
+    return html` <div
+      class="decision-card ${isTyping ? 'active-typing' : ''} ${isSelected
+        ? 'selected-card'
+        : ''}"
+      style="cursor: pointer;"
+      @click=${() => {
+        if (!this.hasConfirmedChoice) this.selectedOption = optionKey;
+      }}
+    >
+      <div class="card-header">
+        <h4>${title}</h4>
+        ${this.renderPayoffTable(payoffData, highlightMode, viewerRole)}
       </div>
-    `;
+      <div class="card-interaction">
+        ${this.stage?.allowTextMessage
+          ? html` <md-outlined-text-field
+              type="textarea"
+              rows="3"
+              label="Recommend ${optionKey}"
+              class="message-input"
+              .value=${currentMessage}
+              ?disabled=${this.hasConfirmedChoice}
+              @click=${(e: Event) => e.stopPropagation()}
+              @input=${(e: InputEvent) =>
+                this.handleTyping(
+                  optionKey,
+                  (e.target as HTMLInputElement).value,
+                )}
+              @paste=${(e: ClipboardEvent) => e.preventDefault()}
+              @copy=${(e: ClipboardEvent) => e.preventDefault()}
+              @cut=${(e: ClipboardEvent) => e.preventDefault()}
+            ></md-outlined-text-field>`
+          : nothing}
+        ${this.stage?.allowButtonPress
+          ? html` <md-filled-button
+              @click=${(e: Event) => {
+                e.stopPropagation();
+                if (!this.hasConfirmedChoice) this.selectedOption = optionKey;
+              }}
+              class="action-btn"
+              ?disabled=${this.hasConfirmedChoice}
+            >
+              <md-icon slot="icon"
+                >${isSelected
+                  ? 'check_circle'
+                  : 'radio_button_unchecked'}</md-icon
+              >
+              ${isSelected ? `${btnLabel} (Selected)` : `Select ${btnLabel}`}
+            </md-filled-button>`
+          : nothing}
+      </div>
+    </div>`;
   }
 
-  private renderPayoffInfoCard(
-    title: string,
+  private renderPayoffTable(
     payoffData: PayoffData,
-    showHighlight: boolean | 'all' = false,
-    viewerRole: Role = 'receiver',
+    highlightMode: boolean | 'all' = true,
+    viewerRole: Role = 'sender',
   ) {
-    return html`
-      <div class="info-card">
-        <h4>${title}</h4>
-        <div class="payoff-info-content">
-          ${this.renderPayoffTable(payoffData, showHighlight, viewerRole)}
+    const labels = this.getLabels();
+    const firstLabel =
+      viewerRole === 'sender' ? 'You earn' : `${labels.senderLabel} earns`;
+    const secondLabel =
+      viewerRole === 'sender' ? `${labels.receiverLabel} earns` : 'You earn';
+
+    if (payoffData.type === 'fixed') {
+      const shouldHighlight = highlightMode === 'all' || highlightMode === true;
+      return html` <div class="payoff-details-container">
+        <div class="payoff-row ${shouldHighlight ? 'highlight-row' : ''}">
+          <div class="role-payoff">
+            <span>${firstLabel}:</span> <b>${payoffData.sender}</b>
+          </div>
+          <div class="role-payoff">
+            <span>${secondLabel}:</span> <b>${payoffData.receiver}</b>
+          </div>
+        </div>
+      </div>`;
+    } else {
+      const getStateClass = (state: 1 | 2) => {
+        if (highlightMode === 'all') return 'highlight-row';
+        if (highlightMode === false) return '';
+        return payoffData.trueState === state ? 'highlight-row' : 'dimmed-row';
+      };
+      return html` <div class="payoff-details-container">
+        <div class="payoff-row ${getStateClass(1)}">
+          <div class="role-payoff">
+            <span>${firstLabel}:</span> <b>${payoffData.state1Sender}</b>
+          </div>
+          <div class="role-payoff">
+            <span>${secondLabel}:</span> <b>${payoffData.state1Receiver}</b>
+          </div>
+        </div>
+        <div class="payoff-row ${getStateClass(2)}">
+          <div class="role-payoff">
+            <span>${firstLabel}:</span> <b>${payoffData.state2Sender}</b>
+          </div>
+          <div class="role-payoff">
+            <span>${secondLabel}:</span> <b>${payoffData.state2Receiver}</b>
+          </div>
+        </div>
+      </div>`;
+    }
+  }
+
+  private renderRoleAssignmentScreen(
+    publicData: SenderReceiverRoundData | SenderReceiverStagePublicData,
+    myId: string,
+  ) {
+    if (this.isSignalingLoading) {
+      return html` <div class="waiting-screen">
+        <p>Joining game...</p>
+        <md-icon class="loading-icon">sync</md-icon>
+      </div>`;
+    }
+    const roleLabel = this.detectedPreviousRole
+      ? this.detectedPreviousRole === 'sender'
+        ? (this.stage?.SenderLabel ?? 'Sender')
+        : (this.stage?.ReceiverLabel ?? 'Receiver')
+      : null;
+    const title = roleLabel ? 'Welcome Back' : '';
+    const description = roleLabel
+      ? html`You are still the <strong>${roleLabel}</strong>.`
+      : html`Please join to be assigned a role.`;
+    const btnLabel = roleLabel ? 'Continue' : 'Join Game';
+
+    return html` <div class="waiting-screen">
+      ${title ? html`<h3>${title}</h3>` : nothing}
+      <p>${description}</p>
+      <md-filled-button
+        ?disabled=${this.isSignalingLoading}
+        @click=${() =>
+          this.assignedRole(
+            publicData,
+            myId,
+            this.detectedPreviousRole ?? undefined,
+          )}
+      >
+        ${btnLabel}
+      </md-filled-button>
+    </div>`;
+  }
+
+  private renderInstructionScreen(isSender: boolean) {
+    const labels = this.getLabels();
+    const roleLabel = isSender ? labels.senderLabel : labels.receiverLabel;
+    const title = `Instructions for ${roleLabel}`;
+    const content = isSender
+      ? this.stage?.senderInstructionDetail
+      : this.stage?.receiverInstructionDetail;
+
+    return html` <div class="reading-panel">
+      <h3>${title}</h3>
+      <div class="instruction-box">
+        ${unsafeHTML(convertMarkdownToHTML(content || ''))}
+      </div>
+      <div class="action-footer">
+        <md-filled-button
+          @click=${() => {
+            this.hasReadInstructions = true;
+          }}
+        >
+          Start Game
+        </md-filled-button>
+      </div>
+    </div>`;
+  }
+
+  private renderWaitingBothStart(
+    round: SenderReceiverRoundData,
+    isSender: boolean,
+  ) {
+    const labels = this.getLabels();
+    const amIReady = isSender
+      ? round.senderReadyStart
+      : round.receiverReadyStart;
+    const partnerReady = isSender
+      ? round.receiverReadyStart
+      : round.senderReadyStart;
+    const roleLabel = isSender ? labels.senderLabel : labels.receiverLabel;
+
+    return html` <div class="waiting-screen start-game-screen">
+      <h3>Ready to Start?</h3>
+      <p>You are the <strong>${roleLabel}</strong>.</p>
+      <p>Both players must click "Start Game" to begin.</p>
+      <div class="ready-status">
+        <div class="status-item ${amIReady ? 'ready' : ''}">
+          <md-icon
+            >${amIReady ? 'check_circle' : 'radio_button_unchecked'}</md-icon
+          >
+          <span>You: ${amIReady ? 'Ready' : 'Not Ready'}</span>
+        </div>
+        <div class="status-item ${partnerReady ? 'ready' : ''}">
+          <md-icon
+            >${partnerReady
+              ? 'check_circle'
+              : 'radio_button_unchecked'}</md-icon
+          >
+          <span>Partner: ${partnerReady ? 'Ready' : 'Not Ready'}</span>
         </div>
       </div>
-    `;
+      ${amIReady
+        ? html` <div class="waiting-for-partner">
+            <md-icon class="waiting-icon">hourglass_empty</md-icon>
+            <p>Waiting for your partner to start...</p>
+          </div>`
+        : html` <md-filled-button
+            @click=${() => this.handleStartGame()}
+            ?disabled=${this.isSignalingLoading}
+          >
+            ${this.isSignalingLoading ? 'Starting...' : 'Start Game'}
+          </md-filled-button>`}
+    </div>`;
   }
 
   /**
    * Render a fixed chat window that displays above the main content.
-   * Shows empty state when no message, and displays the sender's message once sent.
-   * Visible to both sender (after sending) and receiver.
    */
   private renderFixedChatWindow(round: SenderReceiverRoundData) {
     const labels = this.getLabels();
-    const hasMessage = !!round.senderChoice;
     const senderName = labels.senderLabel;
+    if (round.senderChoice === null) {
+      return html`
+        <div class="fixed-chat-window">
+          <div class="chat-window-header">
+            <md-icon>chat</md-icon>
+            <span class="chat-title">Message Window</span>
+          </div>
+          <div class="chat-window-body">
+            <div class="chat-empty-state">
+              <md-icon>chat_bubble_outline</md-icon>
+              <span>Waiting for message...</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
     const initial = senderName.charAt(0).toUpperCase();
     const signalLabel =
       round.senderChoice === 'A'
@@ -1130,89 +866,156 @@ export class SenderReceiverParticipantView extends MobxLitElement {
           <span class="chat-title">Message Window</span>
         </div>
         <div class="chat-window-body">
-          ${hasMessage
-            ? html`
-                <div class="chat-message">
-                  <div class="avatar">${initial}</div>
-                  <div class="message-body">
-                    <span class="sender-name">${senderName}</span>
-                    <div class="message-text">"${displayContent}"</div>
-                  </div>
-                </div>
-              `
-            : html`
-                <div class="chat-empty-state">
-                  <md-icon>chat_bubble_outline</md-icon>
-                  <span>Waiting for message...</span>
-                </div>
-              `}
+          <div class="chat-message">
+            <div class="avatar">${initial}</div>
+            <div class="message-body">
+              <span class="sender-name">${senderName}</span>
+              <div class="message-text">"${displayContent}"</div>
+            </div>
+          </div>
         </div>
       </div>
     `;
   }
-  /**
-   * Unified feedback panel for both sender and receiver
-   * Shows same layout with role-appropriate values
-   */
+
   private renderFeedbackPanel(round: SenderReceiverRoundData, myRole: Role) {
     const labels = this.getLabels();
     const roundInfo = this.getRoundInfo();
     const isSender = myRole === 'sender';
     const partnerLabel = isSender ? labels.receiverLabel : labels.senderLabel;
-
     const myPayoff = isSender ? round.senderPayoff : round.receiverPayoff;
     const partnerPayoff = isSender ? round.receiverPayoff : round.senderPayoff;
     const amIReady = isSender ? round.senderReadyNext : round.receiverReadyNext;
-    const cumulativePayoff = this.getCumulativePayoff(isSender);
-
     const actionDescription = isSender
       ? `The ${partnerLabel} chose Option ${round.receiverChoice}.`
       : `You chose Option ${round.receiverChoice}.`;
 
-    return html`
-      <div class="feedback-panel">
-        <h3>Day ${roundInfo.currentRound}/${roundInfo.totalRounds} Results</h3>
-        <p>${actionDescription}</p>
-
-        <div class="result-details">
-          <div class="score-card">
-            <div class="label">You earn</div>
-            <div class="score"><b>${myPayoff}</b></div>
-          </div>
-          <div class="score-card">
-            <div class="label">${partnerLabel} earns</div>
-            <div class="score"><b>${partnerPayoff}</b></div>
-          </div>
+    return html` <div class="feedback-panel">
+      <h3>Day ${roundInfo.currentRound}/${roundInfo.totalRounds} Results</h3>
+      <p>${actionDescription}</p>
+      <div class="result-details">
+        <div class="score-card">
+          <div class="label">You earn</div>
+          <div class="score"><b>${myPayoff}</b></div>
         </div>
-
-        <div class="cumulative-payoff">
-          <span>Your Total Payoff: <b>${cumulativePayoff}</b></span>
+        <div class="score-card">
+          <div class="label">${partnerLabel} earns</div>
+          <div class="score"><b>${partnerPayoff}</b></div>
         </div>
-
-        ${amIReady
-          ? html`<div class="waiting-next-text">
-              Waiting for ${partnerLabel} to continue...
-            </div>`
-          : html`<div class="next-round-wrapper">
-              <md-filled-button @click=${() => this.handleNextRound()}
-                >Next Round</md-filled-button
-              >
-            </div>`}
       </div>
-    `;
+      <div class="cumulative-payoff">
+        <span
+          >Your Total Payoff: <b>${this.getCumulativePayoff(isSender)}</b></span
+        >
+      </div>
+      ${amIReady
+        ? html`<div class="waiting-next-text">
+            Waiting for ${partnerLabel} to continue...
+          </div>`
+        : html`<div class="next-round-wrapper">
+            <md-filled-button @click=${() => this.handleNextRound()}
+              >Next Round</md-filled-button
+            >
+          </div>`}
+    </div>`;
   }
 
-  // --- User Interaction Handlers ---
+  private renderPayoffInfoCard(
+    title: string,
+    payoffData: PayoffData,
+    showHighlight: boolean | 'all' = false,
+    viewerRole: Role = 'receiver',
+  ) {
+    return html` <div class="info-card">
+      <h4>${title}</h4>
+      <div class="payoff-info-content">
+        ${this.renderPayoffTable(payoffData, showHighlight, viewerRole)}
+      </div>
+    </div>`;
+  }
 
-  private handleTyping(key: 'A' | 'B', value: string) {
-    if (value) this.selectedOption = key; // Auto-select when typing
-    if (key === 'A') {
-      this.chatMessageA = value;
-      if (value) this.chatMessageB = ''; // Clear B if typing in A
-    } else {
-      this.chatMessageB = value;
-      if (value) this.chatMessageA = ''; // Clear A if typing in B
-    }
+  private renderCountdown() {
+    if (this.countdownRemaining <= 0) return nothing;
+    const isUrgent = this.countdownRemaining <= 10;
+    return html` <div class="countdown-display ${isUrgent ? 'urgent' : ''}">
+      <md-icon>timer</md-icon>
+      <span>${formatTime(this.countdownRemaining)}</span>
+    </div>`;
+  }
+
+  private renderPartnerCountdown(partnerLabel: string) {
+    if (this.partnerCountdownRemaining <= 0) return nothing;
+    return html` <div class="partner-countdown-display">
+      <md-icon>hourglass_top</md-icon>
+      <span
+        >${partnerLabel}'s remaining time:
+        ${formatTime(this.partnerCountdownRemaining)}</span
+      >
+    </div>`;
+  }
+
+  private renderStageFinished() {
+    return html` <div class="waiting-screen">
+      <h3>Block Finished</h3>
+      <p>This block is over. Please proceed to the next step.</p>
+      <div class="stage-finished-footer">
+        <md-filled-button
+          @click=${() => this.participantService.progressToNextStage()}
+        >
+          Next Step
+        </md-filled-button>
+      </div>
+    </div>`;
+  }
+
+  // --- Helpers ---
+
+  private getLabels(): LabelConfig {
+    return {
+      senderLabel: this.stage?.SenderLabel ?? 'Sender',
+      receiverLabel: this.stage?.ReceiverLabel ?? 'Receiver',
+      optionALabel: this.stage?.optionALabel ?? 'Option A',
+      optionBLabel: this.stage?.optionBLabel ?? 'Option B',
+      state1Label: this.stage?.state1Label ?? 'State 1',
+      state2Label: this.stage?.state2Label ?? 'State 2',
+    };
+  }
+
+  private getRoundInfo(): RoundInfo {
+    return {
+      currentRound: this.getCurrentRound(),
+      totalRounds: this.stage?.numRounds ?? 1,
+    };
+  }
+
+  private getOptionAPayoff(): FixedPayoffData {
+    return {
+      type: 'fixed',
+      sender: this.stage?.payoffSenderChoiceA,
+      receiver: this.stage?.payoffReceiverChoiceA,
+    };
+  }
+
+  private getOptionBPayoff(trueState: 1 | 2): ConditionalPayoffData {
+    const labels = this.getLabels();
+    return {
+      type: 'conditional',
+      state1Sender: this.stage?.payoffSenderChoiceB1,
+      state1Receiver: this.stage?.payoffReceiverChoiceB1,
+      state2Sender: this.stage?.payoffSenderChoiceB2,
+      state2Receiver: this.stage?.payoffReceiverChoiceB2,
+      trueState,
+      state1Label: labels.state1Label,
+      state2Label: labels.state2Label,
+    };
+  }
+
+  private getActiveTimeSeconds(): number {
+    if (this.pageRenderTimestamp === 0) return 0;
+    return (
+      ((this.decisionClickTimestamp || Date.now()) - this.pageRenderTimestamp) /
+      1000
+    );
   }
 
   private getCurrentRound(): number {
@@ -1227,35 +1030,109 @@ export class SenderReceiverParticipantView extends MobxLitElement {
       this.stage!.id
     ] as SenderReceiverStagePublicData;
     if (!publicData?.roundMap) return 0;
-
-    let total = 0;
-    for (const roundNum of Object.keys(publicData.roundMap)) {
-      const round = publicData.roundMap[Number(roundNum)];
-      if (round) {
-        const payoff = isSender ? round.senderPayoff : round.receiverPayoff;
-        if (payoff !== null) {
-          total += payoff;
-        }
-      }
-    }
-    return total;
+    return Object.values(publicData.roundMap).reduce(
+      (acc, r) =>
+        acc + (Number(isSender ? r.senderPayoff : r.receiverPayoff) || 0),
+      0,
+    );
   }
 
-  private getActiveTimeSeconds(): number {
-    if (this.pageRenderTimestamp === 0) return 0;
-    return (Date.now() - this.pageRenderTimestamp) / 1000;
+  private detectPreviousRole() {
+    const myId = this.participantService.profile?.publicId;
+    if (!myId) return;
+    let foundRole: 'sender' | 'receiver' | null = null;
+    for (const [sId, sData] of Object.entries(
+      this.cohortService.stagePublicDataMap,
+    )) {
+      if (sId === this.stage!.id) continue;
+      if (sData.kind !== StageKind.SENDER_RECEIVER) continue;
+      const srData = sData as SenderReceiverStagePublicData;
+      if (srData.senderId === myId) foundRole = 'sender';
+      if (srData.receiverId === myId) foundRole = 'receiver';
+    }
+    const currentPublic = this.cohortService.stagePublicDataMap[
+      this.stage!.id
+    ] as SenderReceiverStagePublicData;
+    if (currentPublic) {
+      if (
+        foundRole === 'sender' &&
+        currentPublic.senderId &&
+        currentPublic.senderId !== myId
+      )
+        foundRole = null;
+      if (
+        foundRole === 'receiver' &&
+        currentPublic.receiverId &&
+        currentPublic.receiverId !== myId
+      )
+        foundRole = null;
+    }
+    if (this.detectedPreviousRole !== foundRole)
+      this.detectedPreviousRole = foundRole;
+  }
+
+  private checkCurrentStageAutoJoin() {
+    const publicData = this.cohortService.stagePublicDataMap[this.stage!.id] as
+      | SenderReceiverStagePublicData
+      | undefined;
+    const myId = this.participantService.profile?.publicId;
+    if (!publicData || !myId) return;
+    if (publicData.senderId === myId || publicData.receiverId === myId) {
+      this.hasAttemptedAutoJoin = true;
+      return;
+    }
+    if (publicData.senderId && publicData.receiverId) {
+      this.hasAttemptedAutoJoin = true;
+      return;
+    }
+    this.hasAttemptedAutoJoin = true;
+  }
+
+  // --- Network ---
+
+  private async assignedRole(
+    publicData: SenderReceiverRoundData | SenderReceiverStagePublicData,
+    myId: string,
+    requestedRole?: 'sender' | 'receiver',
+  ) {
+    if (this.isSignalingLoading) return;
+    this.isSignalingLoading = true;
+    try {
+      await this.participantService.submitSenderReceiverAction({
+        stageId: this.stage!.id,
+        action: 'assign_role',
+        payload: {participantId: myId, requestedRole},
+      });
+    } catch (e) {
+      console.error('[View] Failed to assign role:', e);
+    } finally {
+      this.isSignalingLoading = false;
+    }
+  }
+
+  private async handleStartGame() {
+    if (this.isSignalingLoading) return;
+    this.isSignalingLoading = true;
+    try {
+      await this.participantService.submitSenderReceiverAction({
+        stageId: this.stage!.id,
+        action: 'start_game',
+        payload: {participantId: this.participantService.profile?.publicId},
+      });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      this.isSignalingLoading = false;
+    }
   }
 
   private async handleSenderSignalWithText(
-    label: 'A' | 'B',
+    label: 'A' | 'B' | null,
     message: string,
-    isTimedOut: boolean = false,
+    isTimedOut: boolean,
   ) {
     if (this.isDecidingLoading) return;
     this.isDecidingLoading = true;
-    const myId = this.participantService.profile?.publicId;
-    const activeTimeSeconds = this.getActiveTimeSeconds();
-
     try {
       await this.participantService.submitSenderReceiverAction({
         stageId: this.stage!.id,
@@ -1263,8 +1140,8 @@ export class SenderReceiverParticipantView extends MobxLitElement {
         payload: {
           senderChoice: label,
           senderMessage: this.stage?.allowTextMessage ? message : undefined,
-          participantId: myId,
-          activeTimeSeconds,
+          participantId: this.participantService.profile?.publicId,
+          activeTimeSeconds: this.getActiveTimeSeconds(),
           isTimedOut,
         },
       });
@@ -1275,23 +1152,17 @@ export class SenderReceiverParticipantView extends MobxLitElement {
     }
   }
 
-  private async handleReceiverChoice(
-    choice: 'A' | 'B',
-    isTimedOut: boolean = false,
-  ) {
+  private async handleReceiverChoice(choice: 'A' | 'B', isTimedOut: boolean) {
     if (this.isDecidingLoading) return;
     this.isDecidingLoading = true;
-    const myId = this.participantService.profile?.publicId;
-    const activeTimeSeconds = this.getActiveTimeSeconds();
-
     try {
       await this.participantService.submitSenderReceiverAction({
         stageId: this.stage!.id,
         action: 'receiver_choice',
         payload: {
           receiverChoice: choice,
-          participantId: myId,
-          activeTimeSeconds,
+          participantId: this.participantService.profile?.publicId,
+          activeTimeSeconds: this.getActiveTimeSeconds(),
           isTimedOut,
         },
       });
@@ -1303,28 +1174,37 @@ export class SenderReceiverParticipantView extends MobxLitElement {
   }
 
   private async recordReceiverSawMessage() {
-    const myId = this.participantService.profile?.publicId;
     try {
       await this.participantService.submitSenderReceiverAction({
         stageId: this.stage!.id,
         action: 'receiver_saw_message',
-        payload: {participantId: myId},
-      });
-    } catch (e) {
-      console.error('Failed to record receiver saw message:', e);
-    }
-  }
-
-  private async handleNextRound() {
-    const myId = this.participantService.profile?.publicId;
-    try {
-      await this.participantService.submitSenderReceiverAction({
-        stageId: this.stage!.id,
-        action: 'next_round',
-        payload: {participantId: myId},
+        payload: {participantId: this.participantService.profile?.publicId},
       });
     } catch (e) {
       console.error(e);
     }
+  }
+
+  private async handleNextRound() {
+    try {
+      await this.participantService.submitSenderReceiverAction({
+        stageId: this.stage!.id,
+        action: 'next_round',
+        payload: {participantId: this.participantService.profile?.publicId},
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  private handleTyping(key: 'A' | 'B', value: string) {
+    if (key === 'A') {
+      this.chatMessageA = value;
+      if (value) this.chatMessageB = '';
+    } else {
+      this.chatMessageB = value;
+      if (value) this.chatMessageA = '';
+    }
+    if (!this.stage?.allowButtonPress) this.selectedOption = key;
   }
 }

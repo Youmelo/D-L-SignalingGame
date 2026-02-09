@@ -36,6 +36,7 @@ export const SenderReceiverStageConfigData = Type.Object(
     allowButtonPress: Type.Boolean(),
     showSenderDefaultChoice: Type.Boolean(),
     showPayoffFeedback: Type.Boolean(),
+    requireParticipantClick: Type.Boolean(),
 
     senderTimeLimitInSeconds: Type.Union([Type.Number(), Type.Null()]),
     receiverTimeLimitInSeconds: Type.Union([Type.Number(), Type.Null()]),

@@ -44,6 +44,8 @@ export interface SenderReceiverStageConfig extends BaseStageConfig {
   showSenderDefaultChoice: boolean; // whether to show default choice if time limit exceeded
   showPayoffFeedback: boolean; // whether to show payoff feedback after each round
 
+  requireParticipantClick: boolean;
+
   senderTimeLimitInSeconds: number | null;
   receiverTimeLimitInSeconds: number | null;
   defaultSenderChoice: 'recommend_A' | 'recommend_B' | 'random';
@@ -162,7 +164,7 @@ export interface SenderReceiverActionData {
     | 'receiver_choice'
     | 'next_round';
   payload?: {
-    senderChoice?: 'A' | 'B'; // For sender_signal
+    senderChoice?: 'A' | 'B' | null; // For sender_signal
     senderMessage?: string; // For sender_signal
     receiverChoice?: 'A' | 'B'; // For receiver_choice
     participantId?: string; // For assign_role
@@ -246,6 +248,7 @@ If no new input has been entered before that time, the system will send a pre-se
     payoffReceiverChoiceB1: 36,
     payoffReceiverChoiceB2: 4,
 
+    requireParticipantClick: true,
     ...config,
   } as SenderReceiverStageConfig;
 }
@@ -315,8 +318,8 @@ export class SeededRandom {
 export interface RoundDefaults {
   round: number;
   trueState: 1 | 2;
-  senderDefault: 'A' | 'B';
-  receiverDefault: 'A' | 'B';
+  senderDefault: 'A' | 'B' | null;
+  receiverDefault: 'A' | 'B' | null;
 }
 
 export function generateBalancedDefaults(

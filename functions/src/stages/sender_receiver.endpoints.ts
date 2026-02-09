@@ -286,6 +286,13 @@ export const submitSenderReceiverAction = onCall<SenderReceiverActionData>(
           defaultSenderChoice = roundDefaults.senderDefault;
         }
 
+        // If requireParticipantClick is true and senderTimedOut is true, set both payoffs to 0
+        let senderPayoff = null;
+        let receiverPayoff = null;
+        if (config.requireParticipantClick && payload?.isTimedOut === true) {
+          senderPayoff = 0;
+          receiverPayoff = 0;
+        }
         const updateData: Record<string, unknown> = {
           [`roundMap.${roundIndex}.senderChoice`]:
             payload?.senderChoice || null,
@@ -299,6 +306,13 @@ export const submitSenderReceiverAction = onCall<SenderReceiverActionData>(
           [`roundMap.${roundIndex}.senderTimedOut`]:
             payload?.isTimedOut ?? false,
           [`roundMap.${roundIndex}.defaultSenderChoice`]: defaultSenderChoice,
+          // If requireParticipantClick and timed out, set payoffs to 0
+          ...(senderPayoff !== null
+            ? {[`roundMap.${roundIndex}.senderPayoff`]: senderPayoff}
+            : {}),
+          ...(receiverPayoff !== null
+            ? {[`roundMap.${roundIndex}.receiverPayoff`]: receiverPayoff}
+            : {}),
           // Transition directly to Receiver Actions
           [`roundMap.${roundIndex}.status`]: 'WAITING_RECEIVER_DECIDE',
           [`roundMap.${roundIndex}.receiverUnlockedTime`]: now,
@@ -350,8 +364,11 @@ export const submitSenderReceiverAction = onCall<SenderReceiverActionData>(
         // Payoff Logic
         let senderPayoff = 0;
         let receiverPayoff = 0;
-
-        if (choice === 'A') {
+        // If senderChoice is null, both payoffs are 0
+        if (roundData.senderChoice === null) {
+          senderPayoff = 0;
+          receiverPayoff = 0;
+        } else if (choice === 'A') {
           senderPayoff = config.payoffSenderChoiceA;
           receiverPayoff = config.payoffReceiverChoiceA;
         } else {
