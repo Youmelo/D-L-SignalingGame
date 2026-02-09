@@ -597,7 +597,12 @@ export class SenderReceiverParticipantView extends MobxLitElement {
         `;
 
       case 'SHOW_FEEDBACK':
-        return this.renderFeedbackPanel(round, 'sender');
+        if (this.stage?.showPayoffFeedback) {
+          return this.renderFeedbackPanel(round, 'sender');
+        } else {
+          setTimeout(() => this.handleNextRound(), 0);
+          return html`<div></div>`;
+        }
 
       default:
         return html`<div>Debug: Unknown Stage ${round.status}</div>`;
@@ -680,7 +685,12 @@ export class SenderReceiverParticipantView extends MobxLitElement {
         `;
 
       case 'SHOW_FEEDBACK':
-        return this.renderFeedbackPanel(round, 'receiver');
+        if (this.stage?.showPayoffFeedback) {
+          return this.renderFeedbackPanel(round, 'receiver');
+        } else {
+          setTimeout(() => this.handleNextRound(), 0);
+          return html`<div></div>`;
+        }
 
       default:
         return html`<div>Debug: Unknown status ${round.status}</div>`;
