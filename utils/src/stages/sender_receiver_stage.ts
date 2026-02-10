@@ -43,7 +43,6 @@ export interface SenderReceiverStageConfig extends BaseStageConfig {
   allowButtonPress: boolean; // whether sender can select label for options
   showSenderDefaultChoice: boolean; // whether to show default choice if time limit exceeded
   showPayoffFeedback: boolean; // whether to show payoff feedback after each round
-
   requireParticipantClick: boolean;
 
   senderTimeLimitInSeconds: number | null;
@@ -231,7 +230,7 @@ If no new input has been entered before that time, the system will send a pre-se
     receiverButtonLabel1: 'Choose Alpha Market',
     receiverButtonLabel2: 'Choose Beta Exchange',
 
-    senderTimeLimitInSeconds: null,
+    senderTimeLimitInSeconds: 20,
     receiverTimeLimitInSeconds: null,
     defaultSenderChoice: 'random',
     defaultReceiverChoice: 'random',
@@ -240,7 +239,7 @@ If no new input has been entered before that time, the system will send a pre-se
     defaultMessageForB: 'Beta Exchange benefits you',
     allowTextMessage: true,
     allowButtonPress: false,
-
+    requireParticipantClick: true,
     payoffSenderChoiceA: 30,
     payoffSenderChoiceB1: 0,
     payoffSenderChoiceB2: 20,
@@ -248,7 +247,6 @@ If no new input has been entered before that time, the system will send a pre-se
     payoffReceiverChoiceB1: 36,
     payoffReceiverChoiceB2: 4,
 
-    requireParticipantClick: true,
     ...config,
   } as SenderReceiverStageConfig;
 }

@@ -72,6 +72,13 @@ export class SenderReceiverParticipantView extends MobxLitElement {
     ParticipantAnswerService,
   );
 
+  // Track default option and message for this round
+  private roundDefaultOption: 'A' | 'B' | null = null;
+  private roundDefaultMessage: string = '';
+  // Track last submitted option and message
+  private lastSubmittedOption: 'A' | 'B' | null = null;
+  private lastSubmittedMessage: string = '';
+
   @property() stage: SenderReceiverStageConfig | null = null;
   @property() answer: SenderReceiverStageParticipantAnswer | null = null;
 
@@ -211,7 +218,7 @@ export class SenderReceiverParticipantView extends MobxLitElement {
       this.decisionClickTimestamp = null;
     }
 
-    // Apply Balanced Defaults
+    // Always set roundDefaultOption/roundDefaultMessage to sender's default, for both sender and receiver panels
     if (
       this.selectedOption === null &&
       this.stage?.enableBalancedDefaults &&
@@ -224,6 +231,16 @@ export class SenderReceiverParticipantView extends MobxLitElement {
         this.stage.state1Probability,
         seed,
       );
+      // Set sender's default option/message for both sender and receiver
+      this.roundDefaultOption = defaults.senderDefault;
+      if (this.stage.allowTextMessage) {
+        if (defaults.senderDefault === 'A') {
+          this.roundDefaultMessage = this.stage.defaultMessageForA || '';
+        } else {
+          this.roundDefaultMessage = this.stage.defaultMessageForB || '';
+        }
+      }
+      // Set selectedOption for UI (sender gets senderDefault, receiver gets receiverDefault)
       if (isSender && round.status === 'WAITING_SENDER_DECIDE') {
         this.selectedOption = defaults.senderDefault;
         if (this.stage.allowTextMessage) {
@@ -327,16 +344,19 @@ export class SenderReceiverParticipantView extends MobxLitElement {
 
   private handleConfirmChoice() {
     if (!this.selectedOption) return;
-
     const isSender = this.isSenderRole();
     const limit = isSender
       ? (this.stage?.senderTimeLimitInSeconds ?? 0)
       : (this.stage?.receiverTimeLimitInSeconds ?? 0);
-
     // Always record decision timestamp immediately
     this.decisionClickTimestamp = Date.now();
     this.hasConfirmedChoice = true;
-
+    // 记录最后提交的信息
+    if (isSender && this.stage?.allowTextMessage) {
+      this.lastSubmittedOption = this.selectedOption;
+      this.lastSubmittedMessage =
+        this.selectedOption === 'A' ? this.chatMessageA : this.chatMessageB;
+    }
     if (limit > 0) {
       // Logic: Timer active -> Wait for timer (UI locked)
     } else {
@@ -347,19 +367,19 @@ export class SenderReceiverParticipantView extends MobxLitElement {
 
   private handleTimeoutSubmit(isSender: boolean) {
     if (!this.stage) return;
-
     // Case 1: User explicitly confirmed choice (either now or waiting for timer)
     if (this.hasConfirmedChoice && this.selectedOption) {
       if (isSender) {
         const msg =
           this.selectedOption === 'A' ? this.chatMessageA : this.chatMessageB;
+        this.lastSubmittedOption = this.selectedOption;
+        this.lastSubmittedMessage = msg;
         this.handleSenderSignalWithText(this.selectedOption, msg, false);
       } else {
         this.handleReceiverChoice(this.selectedOption, false);
       }
       return;
     }
-
     // Case 2: True timeout (no user action)
     let choice = this.selectedOption;
     if (isSender) {
@@ -475,7 +495,8 @@ export class SenderReceiverParticipantView extends MobxLitElement {
               @click=${() => this.handleConfirmChoice()}
               ?disabled=${!this.selectedOption ||
               this.hasConfirmedChoice ||
-              this.isDecidingLoading}
+              this.isDecidingLoading ||
+              (this.stage && this.stage.requireParticipantClick === false)}
               class="primary-action-btn"
             >
               ${this.hasConfirmedChoice
@@ -486,6 +507,7 @@ export class SenderReceiverParticipantView extends MobxLitElement {
         </div>`;
 
       case 'WAITING_RECEIVER_DECIDE':
+        // Check if user changed default choice or message
         return html` <div class="waiting-panel">
           <h3>
             Day ${roundInfo.currentRound}/${roundInfo.totalRounds} - Waiting for
@@ -536,7 +558,6 @@ export class SenderReceiverParticipantView extends MobxLitElement {
             <strong>${labels.senderLabel}</strong> sent you a message.
           </p>
           ${this.renderFixedChatWindow(round)}
-
           <div class="payoff-matrix-display">
             ${this.renderPayoffInfoCard(
               labels.optionALabel,
@@ -859,12 +880,15 @@ export class SenderReceiverParticipantView extends MobxLitElement {
     // Display content: text message if available, otherwise signal label
     const displayContent = hasTextMessage ? round.senderMessage : signalLabel;
 
+    const changed = this.getSenderChanged(round, false);
+
     return html`
       <div class="fixed-chat-window">
         <div class="chat-window-header">
           <md-icon>chat</md-icon>
           <span class="chat-title">Message Window</span>
         </div>
+        ${this.renderSenderChangeTip(changed, senderName)}
         <div class="chat-window-body">
           <div class="chat-message">
             <div class="avatar">${initial}</div>
@@ -967,7 +991,44 @@ export class SenderReceiverParticipantView extends MobxLitElement {
       </div>
     </div>`;
   }
+  private getSenderChanged(
+    round: SenderReceiverRoundData,
+    isSender: boolean,
+  ): boolean {
+    if (
+      this.stage?.allowTextMessage &&
+      this.roundDefaultOption &&
+      this.roundDefaultMessage
+    ) {
+      let submittedOption: 'A' | 'B' | null = null;
+      let submittedMessage = '';
+      submittedOption =
+        typeof round.senderChoice === 'string' ? round.senderChoice : null;
+      submittedMessage =
+        typeof round.senderMessage === 'string' ? round.senderMessage : '';
+      return (
+        submittedOption !== this.roundDefaultOption ||
+        submittedMessage !== this.roundDefaultMessage
+      );
+    }
+    return false;
+  }
 
+  private renderSenderChangeTip(changed: boolean, senderLabel: string) {
+    return html`<div style="margin-bottom:12px;">
+      ${!changed
+        ? html`<div
+            style="background:#e3f2fd;border-left:4px solid #1976d2;padding:8px;color:#1976d2;font-weight:500;"
+          >
+            ${senderLabel} submitted the default choice.
+          </div>`
+        : html`<div
+            style="background:#fff3e0;border-left:4px solid #ff9800;padding:8px;color:#e65100;font-weight:500;"
+          >
+            ${senderLabel} changed the default choice.
+          </div>`}
+    </div>`;
+  }
   // --- Helpers ---
 
   private getLabels(): LabelConfig {
@@ -1200,11 +1261,22 @@ export class SenderReceiverParticipantView extends MobxLitElement {
   private handleTyping(key: 'A' | 'B', value: string) {
     if (key === 'A') {
       this.chatMessageA = value;
-      if (value) this.chatMessageB = '';
+      if (value) {
+        this.chatMessageB = '';
+        if (this.stage?.allowTextMessage) this.selectedOption = 'A';
+      } else if (!this.chatMessageB && this.stage?.allowTextMessage) {
+        this.selectedOption = null;
+      }
     } else {
       this.chatMessageB = value;
-      if (value) this.chatMessageA = '';
+      if (value) {
+        this.chatMessageA = '';
+        if (this.stage?.allowTextMessage) this.selectedOption = 'B';
+      } else if (!this.chatMessageA && this.stage?.allowTextMessage) {
+        this.selectedOption = null;
+      }
     }
-    if (!this.stage?.allowButtonPress) this.selectedOption = key;
+    if (!this.stage?.allowButtonPress && !this.stage?.allowTextMessage)
+      this.selectedOption = key;
   }
 }
